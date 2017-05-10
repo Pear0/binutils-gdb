@@ -1,6 +1,6 @@
 /* Native support code for PPC AIX, for GDB the GNU debugger.
 
-   Copyright (C) 2006-2016 Free Software Foundation, Inc.
+   Copyright (C) 2006-2017 Free Software Foundation, Inc.
 
    Free Software Foundation, Inc.
 
@@ -673,7 +673,7 @@ branch_dest (struct regcache *regcache, int opcode, int instr,
 
 /* AIX does not support PT_STEP.  Simulate it.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 rs6000_software_single_step (struct regcache *regcache)
 {
   struct gdbarch *gdbarch = get_regcache_arch (regcache);
@@ -682,14 +682,13 @@ rs6000_software_single_step (struct regcache *regcache)
   CORE_ADDR loc;
   CORE_ADDR breaks[2];
   int opcode;
-  VEC (CORE_ADDR) *next_pcs;
 
   loc = regcache_read_pc (regcache);
 
   insn = read_memory_integer (loc, 4, byte_order);
 
-  next_pcs = ppc_deal_with_atomic_sequence (regcache);
-  if (next_pcs != NULL)
+  std::vector<CORE_ADDR> next_pcs = ppc_deal_with_atomic_sequence (regcache);
+  if (!next_pcs.empty ())
     return next_pcs;
   
   breaks[0] = loc + PPC_INSN_SIZE;
@@ -705,7 +704,8 @@ rs6000_software_single_step (struct regcache *regcache)
       /* ignore invalid breakpoint.  */
       if (breaks[ii] == -1)
 	continue;
-      VEC_safe_push (CORE_ADDR, next_pcs, breaks[ii]);
+
+      next_pcs.push_back (breaks[ii]);
     }
 
   errno = 0;			/* FIXME, don't ignore errors!  */
@@ -1080,6 +1080,11 @@ rs6000_aix_init_osabi (struct gdbarch_info info, struct gdbarch *gdbarch)
   else
     set_gdbarch_frame_red_zone_size (gdbarch, 0);
 
+  if (tdep->wordsize == 8)
+    set_gdbarch_wchar_bit (gdbarch, 32);
+  else
+    set_gdbarch_wchar_bit (gdbarch, 16);
+  set_gdbarch_wchar_signed (gdbarch, 0);
   set_gdbarch_auto_wide_charset (gdbarch, rs6000_aix_auto_wide_charset);
 
   set_solib_ops (gdbarch, &solib_aix_so_ops);

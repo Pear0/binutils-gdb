@@ -1,6 +1,6 @@
 /* Generic code for supporting multiple C++ ABI's
 
-   Copyright (C) 2001-2016 Free Software Foundation, Inc.
+   Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -314,12 +314,10 @@ static void
 list_cp_abis (int from_tty)
 {
   struct ui_out *uiout = current_uiout;
-  struct cleanup *cleanup_chain;
   int i;
 
   uiout->text ("The available C++ ABIs are:\n");
-  cleanup_chain = make_cleanup_ui_out_tuple_begin_end (uiout,
-						       "cp-abi-list");
+  ui_out_emit_tuple tuple_emitter (uiout, "cp-abi-list");
   for (i = 0; i < num_cp_abis; i++)
     {
       char pad[14];
@@ -337,7 +335,6 @@ list_cp_abis (int from_tty)
       uiout->field_string ("doc", cp_abis[i]->doc);
       uiout->text ("\n");
     }
-  do_cleanups (cleanup_chain);
 }
 
 /* Set the current C++ ABI, or display the list of options if no

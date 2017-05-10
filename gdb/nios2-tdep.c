@@ -1,5 +1,5 @@
 /* Target-machine dependent code for Nios II, for GDB.
-   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+   Copyright (C) 2012-2017 Free Software Foundation, Inc.
    Contributed by Peter Brookes (pbrookes@altera.com)
    and Andrew Draper (adraper@altera.com).
    Contributed by Mentor Graphics, Inc.
@@ -2219,16 +2219,13 @@ nios2_get_next_pc (struct regcache *regcache, CORE_ADDR pc)
 
 /* Implement the software_single_step gdbarch method.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 nios2_software_single_step (struct regcache *regcache)
 {
   struct gdbarch *gdbarch = get_regcache_arch (regcache);
   CORE_ADDR next_pc = nios2_get_next_pc (regcache, regcache_read_pc (regcache));
-  VEC (CORE_ADDR) *next_pcs = NULL;
 
-  VEC_safe_push (CORE_ADDR, next_pcs, next_pc);
-
-  return next_pcs;
+  return {next_pc};
 }
 
 /* Implement the get_longjump_target gdbarch method.  */

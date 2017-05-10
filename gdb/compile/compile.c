@@ -1,6 +1,6 @@
 /* General Compile and inject code
 
-   Copyright (C) 2014-2016 Free Software Foundation, Inc.
+   Copyright (C) 2014-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -151,12 +151,10 @@ compile_code_command (char *arg, int from_tty)
     eval_compile_command (NULL, arg, scope, NULL);
   else
     {
-      struct command_line *l = get_command_line (compile_control, "");
-      struct cleanup *cleanup = make_cleanup_free_command_lines (&l);
+      command_line_up l = get_command_line (compile_control, "");
 
       l->control_u.compile.scope = scope;
-      execute_control_command_untraced (l);
-      do_cleanups (cleanup);
+      execute_control_command_untraced (l.get ());
     }
 }
 
@@ -192,13 +190,11 @@ compile_print_command (char *arg_param, int from_tty)
     eval_compile_command (NULL, arg, scope, &fmt);
   else
     {
-      struct command_line *l = get_command_line (compile_control, "");
-      struct cleanup *cleanup = make_cleanup_free_command_lines (&l);
+      command_line_up l = get_command_line (compile_control, "");
 
       l->control_u.compile.scope = scope;
       l->control_u.compile.scope_data = &fmt;
-      execute_control_command_untraced (l);
-      do_cleanups (cleanup);
+      execute_control_command_untraced (l.get ());
     }
 }
 
@@ -494,22 +490,19 @@ compile_to_object (struct command_line *cmd, const char *cmd_string,
   /* From the provided expression, build a scope to pass to the
      compiler.  */
 
-  std::string input_buf;
+  string_file input_buf;
   const char *input;
 
   if (cmd != NULL)
     {
-      struct ui_file *stream = mem_fileopen ();
       struct command_line *iter;
 
-      make_cleanup_ui_file_delete (stream);
       for (iter = cmd->body_list[0]; iter; iter = iter->next)
 	{
-	  fputs_unfiltered (iter->line, stream);
-	  fputs_unfiltered ("\n", stream);
+	  input_buf.puts (iter->line);
+	  input_buf.puts ("\n");
 	}
 
-      input_buf = ui_file_as_string (stream);
       input = input_buf.c_str ();
     }
   else if (cmd_string != NULL)

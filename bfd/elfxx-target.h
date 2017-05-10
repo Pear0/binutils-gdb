@@ -1,5 +1,5 @@
 /* Target definitions for NN-bit ELF
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -108,8 +108,14 @@
 #ifndef elf_backend_want_dynbss
 #define elf_backend_want_dynbss 1
 #endif
+#ifndef elf_backend_want_dynrelro
+#define elf_backend_want_dynrelro 0
+#endif
 #ifndef elf_backend_want_p_paddr_set_to_zero
 #define elf_backend_want_p_paddr_set_to_zero 0
+#endif
+#ifndef elf_backend_no_page_alias
+#define elf_backend_no_page_alias 0
 #endif
 #ifndef elf_backend_default_execstack
 #define elf_backend_default_execstack 1
@@ -119,6 +125,9 @@
 #endif
 #ifndef elf_backend_extern_protected_data
 #define elf_backend_extern_protected_data 0
+#endif
+#ifndef elf_backend_always_renumber_dynsyms
+#define elf_backend_always_renumber_dynsyms FALSE
 #endif
 #ifndef elf_backend_stack_align
 #define elf_backend_stack_align 16
@@ -513,6 +522,15 @@
 #ifndef elf_backend_obj_attrs_handle_unknown
 #define elf_backend_obj_attrs_handle_unknown	NULL
 #endif
+#ifndef elf_backend_parse_gnu_properties
+#define elf_backend_parse_gnu_properties	NULL
+#endif
+#ifndef elf_backend_merge_gnu_properties
+#define elf_backend_merge_gnu_properties	NULL
+#endif
+#ifndef elf_backend_setup_gnu_properties
+#define elf_backend_setup_gnu_properties	_bfd_elf_link_setup_gnu_properties
+#endif
 #ifndef elf_backend_static_tls_alignment
 #define elf_backend_static_tls_alignment	1
 #endif
@@ -700,7 +718,7 @@
 #endif
 
 #ifndef elf_backend_get_reloc_section
-#define elf_backend_get_reloc_section _bfd_elf_get_reloc_section
+#define elf_backend_get_reloc_section _bfd_elf_plt_get_reloc_section
 #endif
 
 #ifndef elf_backend_copy_special_section_fields
@@ -832,6 +850,9 @@ static struct elf_backend_data elfNN_bed =
   elf_backend_obj_attrs_section_type,
   elf_backend_obj_attrs_order,
   elf_backend_obj_attrs_handle_unknown,
+  elf_backend_parse_gnu_properties,
+  elf_backend_merge_gnu_properties,
+  elf_backend_setup_gnu_properties,
   elf_backend_compact_eh_encoding,
   elf_backend_cant_unwind_opcode,
   elf_backend_static_tls_alignment,
@@ -855,10 +876,13 @@ static struct elf_backend_data elfNN_bed =
   elf_backend_can_refcount,
   elf_backend_want_got_sym,
   elf_backend_want_dynbss,
+  elf_backend_want_dynrelro,
   elf_backend_want_p_paddr_set_to_zero,
+  elf_backend_no_page_alias,
   elf_backend_default_execstack,
   elf_backend_caches_rawsize,
-  elf_backend_extern_protected_data
+  elf_backend_extern_protected_data,
+  elf_backend_always_renumber_dynsyms
 };
 
 /* Forward declaration for use when initialising alternative_target field.  */

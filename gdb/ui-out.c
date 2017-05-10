@@ -1,6 +1,6 @@
 /* Output generating routines for GDB.
 
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions.
    Written by Fernando Nasser for Cygnus.
@@ -29,6 +29,8 @@
 #include <memory>
 #include <string>
 #include <memory>
+
+namespace {
 
 /* A header of a ui_out_table.  */
 
@@ -90,6 +92,8 @@ class ui_out_hdr
   /* Printed header text of the column.  */
   std::string m_header;
 };
+
+} // namespace
 
 /* A level of nesting (either a list or a tuple) in a ui_out output.  */
 
@@ -529,15 +533,13 @@ ui_out::field_core_addr (const char *fldname, struct gdbarch *gdbarch,
 }
 
 void
-ui_out::field_stream (const char *fldname, ui_file *stream)
+ui_out::field_stream (const char *fldname, string_file &stream)
 {
-  std::string buffer = ui_file_as_string (stream);
-
-  if (!buffer.empty ())
-    field_string (fldname, buffer.c_str ());
+  if (!stream.empty ())
+    field_string (fldname, stream.c_str ());
   else
     field_skip (fldname);
-  ui_file_rewind (stream);
+  stream.clear ();
 }
 
 /* Used to omit a field.  */
@@ -619,10 +621,10 @@ ui_out::flush ()
   do_flush ();
 }
 
-int
+void
 ui_out::redirect (ui_file *outstream)
 {
-  return do_redirect (outstream);
+  do_redirect (outstream);
 }
 
 /* Test the flags against the mask given.  */

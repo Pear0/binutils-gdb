@@ -1,5 +1,5 @@
 /* BFD back-end for Intel Hex objects.
-   Copyright (C) 1995-2016 Free Software Foundation, Inc.
+   Copyright (C) 1995-2017 Free Software Foundation, Inc.
    Written by Ian Lance Taylor of Cygnus Support <ian@cygnus.com>.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -830,8 +830,8 @@ ihex_write_object_contents (bfd *abfd)
 		      sprintf_vma (buf, where);
 		      _bfd_error_handler
 			/* xgettext:c-format */
-			(_("%s: address 0x%s out of range for Intel Hex file"),
-			 bfd_get_filename (abfd), buf);
+			(_("%B: address 0x%s out of range for Intel Hex file"),
+			 abfd, buf);
 		      bfd_set_error (bfd_error_bad_value);
 		      return FALSE;
 		    }

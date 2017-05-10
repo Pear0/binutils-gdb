@@ -1,5 +1,5 @@
 /* Print mips instructions for GDB, the GNU debugger, or for objdump.
-   Copyright (C) 1989-2016 Free Software Foundation, Inc.
+   Copyright (C) 1989-2017 Free Software Foundation, Inc.
    Contributed by Nobuyuki Hikichi(hikichi@sra.co.jp).
 
    This file is part of the GNU opcodes library.
@@ -1281,9 +1281,10 @@ print_insn_arg (struct disassemble_info *info,
 	pcrel_op = (const struct mips_pcrel_operand *) operand;
 	info->target = mips_decode_pcrel_operand (pcrel_op, base_pc, uval);
 
-	/* Preserve the ISA bit for the GDB disassembler,
-	   otherwise clear it.  */
-	if (info->flavour != bfd_target_unknown_flavour)
+	/* For jumps and branches clear the ISA bit except for
+	   the GDB disassembler.  */
+	if (pcrel_op->include_isa_bit
+	    && info->flavour != bfd_target_unknown_flavour)
 	  info->target &= -2;
 
 	(*info->print_address_func) (info->target, info);
@@ -2432,6 +2433,9 @@ print_mips_disassembler_options (FILE *stream)
   fprintf (stream, _("\n\
 The following MIPS specific disassembler options are supported for use\n\
 with the -M switch (multiple options should be separated by commas):\n"));
+
+  fprintf (stream, _("\n\
+  no-aliases               Use canonical instruction forms.\n"));
 
   fprintf (stream, _("\n\
   msa                      Recognize MSA instructions.\n"));

@@ -1,6 +1,6 @@
 /* Definitions for symbol file management in GDB.
 
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -514,7 +514,7 @@ extern int have_minimal_symbols (void);
 extern struct obj_section *find_pc_section (CORE_ADDR pc);
 
 /* Return non-zero if PC is in a section called NAME.  */
-extern int pc_in_section (CORE_ADDR, char *);
+extern int pc_in_section (CORE_ADDR, const char *);
 
 /* Return non-zero if PC is in a SVR4-style procedure linkage table
    section.  */

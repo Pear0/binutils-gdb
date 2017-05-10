@@ -1,6 +1,6 @@
 /* Trace file support in GDB.
 
-   Copyright (C) 1997-2016 Free Software Foundation, Inc.
+   Copyright (C) 1997-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -325,7 +325,7 @@ tsave_command (char *args, int from_tty)
     {
       if (strcmp (*argv, "-r") == 0)
 	target_does_save = 1;
-      if (strcmp (*argv, "-ctf") == 0)
+      else if (strcmp (*argv, "-ctf") == 0)
 	generate_ctf = 1;
       else if (**argv == '-')
 	error (_("unknown option `%s'"), *argv);

@@ -1,6 +1,6 @@
 /* Target-dependent code for Renesas Super-H, for GDB.
 
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -125,7 +125,7 @@ enum
 static const char *
 sh64_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] =
+  static const char *register_names[] =
   {
     /* SH MEDIA MODE (ISA 32) */
     /* general registers (64-bit) 0-63 */

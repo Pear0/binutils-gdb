@@ -1,6 +1,6 @@
 /* Target-dependent code for the VAX.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -39,7 +39,7 @@
 static const char *
 vax_register_name (struct gdbarch *gdbarch, int regnum)
 {
-  static char *register_names[] =
+  static const char *register_names[] =
   {
     "r0", "r1", "r2",  "r3",  "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "ap", "fp", "sp", "pc",

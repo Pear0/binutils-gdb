@@ -1,6 +1,6 @@
 /* Branch trace support for GDB, the GNU debugger.
 
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
 
@@ -141,6 +141,21 @@ ftrace_debug (const struct btrace_function *bfun, const char *prefix)
 		prefix, fun, file, level, ibegin, iend);
 }
 
+/* Return the number of instructions in a given function call segment.  */
+
+static unsigned int
+ftrace_call_num_insn (const struct btrace_function* bfun)
+{
+  if (bfun == NULL)
+    return 0;
+
+  /* A gap is always counted as one instruction.  */
+  if (bfun->errcode != 0)
+    return 1;
+
+  return VEC_length (btrace_insn_s, bfun->insn);
+}
+
 /* Return non-zero if BFUN does not match MFUN and FUN,
    return zero otherwise.  */
 
@@ -216,8 +231,7 @@ ftrace_new_function (struct btrace_function *prev,
       prev->flow.next = bfun;
 
       bfun->number = prev->number + 1;
-      bfun->insn_offset = (prev->insn_offset
-			   + VEC_length (btrace_insn_s, prev->insn));
+      bfun->insn_offset = prev->insn_offset + ftrace_call_num_insn (prev);
       bfun->level = prev->level;
     }
 
@@ -448,9 +462,11 @@ ftrace_new_switch (struct btrace_function *prev,
 {
   struct btrace_function *bfun;
 
-  /* This is an unexplained function switch.  The call stack will likely
-     be wrong at this point.  */
+  /* This is an unexplained function switch.  We can't really be sure about the
+     call stack, yet the best I can think of right now is to preserve it.  */
   bfun = ftrace_new_function (prev, mfun, fun);
+  bfun->up = prev->up;
+  bfun->flags = prev->flags;
 
   ftrace_debug (bfun, "new switch");
 
@@ -1096,15 +1112,26 @@ pt_reclassify_insn (enum pt_insn_class iclass)
 /* Return the btrace instruction flags for INSN.  */
 
 static btrace_insn_flags
-pt_btrace_insn_flags (const struct pt_insn *insn)
+pt_btrace_insn_flags (const struct pt_insn &insn)
 {
   btrace_insn_flags flags = 0;
 
-  if (insn->speculative)
+  if (insn.speculative)
     flags |= BTRACE_INSN_FLAG_SPECULATIVE;
 
   return flags;
 }
+
+/* Return the btrace instruction for INSN.  */
+
+static btrace_insn
+pt_btrace_insn (const struct pt_insn &insn)
+{
+  return {(CORE_ADDR) insn.ip, (gdb_byte) insn.size,
+	  pt_reclassify_insn (insn.iclass),
+	  pt_btrace_insn_flags (insn)};
+}
+
 
 /* Add function branch trace using DECODER.  */
 
@@ -1122,7 +1149,6 @@ ftrace_add_pt (struct pt_insn_decoder *decoder,
   end = *pend;
   for (;;)
     {
-      struct btrace_insn btinsn;
       struct pt_insn insn;
 
       errcode = pt_insn_sync_forward (decoder);
@@ -1134,7 +1160,6 @@ ftrace_add_pt (struct pt_insn_decoder *decoder,
 	  break;
 	}
 
-      memset (&btinsn, 0, sizeof (btinsn));
       for (;;)
 	{
 	  errcode = pt_insn_next (decoder, &insn, sizeof(insn));
@@ -1191,11 +1216,7 @@ ftrace_add_pt (struct pt_insn_decoder *decoder,
 	  /* Maintain the function level offset.  */
 	  *plevel = std::min (*plevel, end->level);
 
-	  btinsn.pc = (CORE_ADDR) insn.ip;
-	  btinsn.size = (gdb_byte) insn.size;
-	  btinsn.iclass = pt_reclassify_insn (insn.iclass);
-	  btinsn.flags = pt_btrace_insn_flags (&insn);
-
+	  btrace_insn btinsn = pt_btrace_insn (insn);
 	  ftrace_update_insns (end, &btinsn);
 	}
 
@@ -1472,10 +1493,33 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
 
   tp->btrace.target = target_enable_btrace (tp->ptid, conf);
 
-  /* Add an entry for the current PC so we start tracing from where we
-     enabled it.  */
-  if (tp->btrace.target != NULL)
-    btrace_add_pc (tp);
+  /* We're done if we failed to enable tracing.  */
+  if (tp->btrace.target == NULL)
+    return;
+
+  /* We need to undo the enable in case of errors.  */
+  TRY
+    {
+      /* Add an entry for the current PC so we start tracing from where we
+	 enabled it.
+
+	 If we can't access TP's registers, TP is most likely running.  In this
+	 case, we can't really say where tracing was enabled so it should be
+	 safe to simply skip this step.
+
+	 This is not relevant for BTRACE_FORMAT_PT since the trace will already
+	 start at the PC at which tracing was enabled.  */
+      if (conf->format != BTRACE_FORMAT_PT
+	  && can_access_registers_ptid (tp->ptid))
+	btrace_add_pc (tp);
+    }
+  CATCH (exception, RETURN_MASK_ALL)
+    {
+      btrace_disable (tp);
+
+      throw_exception (exception);
+    }
+  END_CATCH
 }
 
 /* See btrace.h.  */
@@ -1686,6 +1730,55 @@ btrace_maint_clear (struct btrace_thread_info *btinfo)
 
 /* See btrace.h.  */
 
+const char *
+btrace_decode_error (enum btrace_format format, int errcode)
+{
+  switch (format)
+    {
+    case BTRACE_FORMAT_BTS:
+      switch (errcode)
+	{
+	case BDE_BTS_OVERFLOW:
+	  return _("instruction overflow");
+
+	case BDE_BTS_INSN_SIZE:
+	  return _("unknown instruction");
+
+	default:
+	  break;
+	}
+      break;
+
+#if defined (HAVE_LIBIPT)
+    case BTRACE_FORMAT_PT:
+      switch (errcode)
+	{
+	case BDE_PT_USER_QUIT:
+	  return _("trace decode cancelled");
+
+	case BDE_PT_DISABLED:
+	  return _("disabled");
+
+	case BDE_PT_OVERFLOW:
+	  return _("overflow");
+
+	default:
+	  if (errcode < 0)
+	    return pt_errstr (pt_errcode (errcode));
+	  break;
+	}
+      break;
+#endif /* defined (HAVE_LIBIPT)  */
+
+    default:
+      break;
+    }
+
+  return _("unknown");
+}
+
+/* See btrace.h.  */
+
 void
 btrace_fetch (struct thread_info *tp)
 {
@@ -1709,8 +1802,17 @@ btrace_fetch (struct thread_info *tp)
   if (btinfo->replay != NULL)
     return;
 
+  /* With CLI usage, TP->PTID always equals INFERIOR_PTID here.  Now that we
+     can store a gdb.Record object in Python referring to a different thread
+     than the current one, temporarily set INFERIOR_PTID.  */
+  cleanup = save_inferior_ptid ();
+  inferior_ptid = tp->ptid;
+
+  /* We should not be called on running or exited threads.  */
+  gdb_assert (can_access_registers_ptid (tp->ptid));
+
   btrace_data_init (&btrace);
-  cleanup = make_cleanup_btrace_data (&btrace);
+  make_cleanup_btrace_data (&btrace);
 
   /* Let's first try to extend the trace we already have.  */
   if (btinfo->end != NULL)
@@ -1748,13 +1850,19 @@ btrace_fetch (struct thread_info *tp)
   /* Compute the trace, provided we have any.  */
   if (!btrace_data_empty (&btrace))
     {
+      struct btrace_function *bfun;
+
       /* Store the raw trace data.  The stored data will be cleared in
 	 btrace_clear, so we always append the new trace.  */
       btrace_data_append (&btinfo->data, &btrace);
       btrace_maint_clear (btinfo);
 
+      VEC_truncate (btrace_fun_p, btinfo->functions, 0);
       btrace_clear_history (btinfo);
       btrace_compute_ftrace (tp, &btrace);
+
+      for (bfun = btinfo->begin; bfun != NULL; bfun = bfun->flow.next)
+	VEC_safe_push (btrace_fun_p, btinfo->functions, bfun);
     }
 
   do_cleanups (cleanup);
@@ -1777,12 +1885,15 @@ btrace_clear (struct thread_info *tp)
 
   btinfo = &tp->btrace;
 
+  VEC_free (btrace_fun_p, btinfo->functions);
+
   it = btinfo->begin;
   while (it != NULL)
     {
       trash = it;
       it = it->flow.next;
 
+      VEC_free (btrace_insn_s, trash->insn);
       xfree (trash);
     }
 
@@ -2150,18 +2261,18 @@ btrace_insn_get (const struct btrace_insn_iterator *it)
 
 /* See btrace.h.  */
 
+int
+btrace_insn_get_error (const struct btrace_insn_iterator *it)
+{
+  return it->function->errcode;
+}
+
+/* See btrace.h.  */
+
 unsigned int
 btrace_insn_number (const struct btrace_insn_iterator *it)
 {
-  const struct btrace_function *bfun;
-
-  bfun = it->function;
-
-  /* Return zero if the iterator points to a gap in the trace.  */
-  if (bfun->errcode != 0)
-    return 0;
-
-  return bfun->insn_offset + it->index;
+  return it->function->insn_offset + it->index;
 }
 
 /* See btrace.h.  */
@@ -2356,37 +2467,6 @@ btrace_insn_cmp (const struct btrace_insn_iterator *lhs,
   lnum = btrace_insn_number (lhs);
   rnum = btrace_insn_number (rhs);
 
-  /* A gap has an instruction number of zero.  Things are getting more
-     complicated if gaps are involved.
-
-     We take the instruction number offset from the iterator's function.
-     This is the number of the first instruction after the gap.
-
-     This is OK as long as both lhs and rhs point to gaps.  If only one of
-     them does, we need to adjust the number based on the other's regular
-     instruction number.  Otherwise, a gap might compare equal to an
-     instruction.  */
-
-  if (lnum == 0 && rnum == 0)
-    {
-      lnum = lhs->function->insn_offset;
-      rnum = rhs->function->insn_offset;
-    }
-  else if (lnum == 0)
-    {
-      lnum = lhs->function->insn_offset;
-
-      if (lnum == rnum)
-	lnum -= 1;
-    }
-  else if (rnum == 0)
-    {
-      rnum = rhs->function->insn_offset;
-
-      if (rnum == lnum)
-	rnum -= 1;
-    }
-
   return (int) (lnum - rnum);
 }
 
@@ -2398,31 +2478,45 @@ btrace_find_insn_by_number (struct btrace_insn_iterator *it,
 			    unsigned int number)
 {
   const struct btrace_function *bfun;
-  unsigned int end, length;
+  unsigned int upper, lower;
 
-  for (bfun = btinfo->end; bfun != NULL; bfun = bfun->flow.prev)
+  if (VEC_empty (btrace_fun_p, btinfo->functions))
+      return 0;
+
+  lower = 0;
+  bfun = VEC_index (btrace_fun_p, btinfo->functions, lower);
+  if (number < bfun->insn_offset)
+    return 0;
+
+  upper = VEC_length (btrace_fun_p, btinfo->functions) - 1;
+  bfun = VEC_index (btrace_fun_p, btinfo->functions, upper);
+  if (number >= bfun->insn_offset + ftrace_call_num_insn (bfun))
+    return 0;
+
+  /* We assume that there are no holes in the numbering.  */
+  for (;;)
     {
-      /* Skip gaps. */
-      if (bfun->errcode != 0)
-	continue;
+      const unsigned int average = lower + (upper - lower) / 2;
 
-      if (bfun->insn_offset <= number)
-	break;
+      bfun = VEC_index (btrace_fun_p, btinfo->functions, average);
+
+      if (number < bfun->insn_offset)
+	{
+	  upper = average - 1;
+	  continue;
+	}
+
+      if (number >= bfun->insn_offset + ftrace_call_num_insn (bfun))
+	{
+	  lower = average + 1;
+	  continue;
+	}
+
+      break;
     }
-
-  if (bfun == NULL)
-    return 0;
-
-  length = VEC_length (btrace_insn_s, bfun->insn);
-  gdb_assert (length > 0);
-
-  end = bfun->insn_offset + length;
-  if (end <= number)
-    return 0;
 
   it->function = bfun;
   it->index = number - bfun->insn_offset;
-
   return 1;
 }
 

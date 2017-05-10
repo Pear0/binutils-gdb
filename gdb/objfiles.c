@@ -1,6 +1,6 @@
 /* GDB routines for manipulating objfiles.
 
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support, using pieces from other GDB modules.
 
@@ -1469,7 +1469,7 @@ find_pc_section (CORE_ADDR pc)
 /* Return non-zero if PC is in a section called NAME.  */
 
 int
-pc_in_section (CORE_ADDR pc, char *name)
+pc_in_section (CORE_ADDR pc, const char *name)
 {
   struct obj_section *s;
   int retval = 0;

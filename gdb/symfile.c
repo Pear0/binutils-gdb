@@ -1,6 +1,6 @@
 /* Generic symbol file reading for the GNU debugger, GDB.
 
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support, using pieces from other GDB modules.
 
@@ -90,8 +90,6 @@ static void symbol_file_add_main_1 (const char *args, symfile_add_flags add_flag
 static void add_symbol_file_command (char *, int);
 
 static const struct sym_fns *find_sym_fns (bfd *);
-
-static void decrement_reading_symtab (void *);
 
 static void overlay_invalidate_all (void);
 
@@ -193,22 +191,15 @@ print_symbol_loading_p (int from_tty, int exec, int full)
 
 int currently_reading_symtab = 0;
 
-static void
-decrement_reading_symtab (void *dummy)
-{
-  currently_reading_symtab--;
-  gdb_assert (currently_reading_symtab >= 0);
-}
-
 /* Increment currently_reading_symtab and return a cleanup that can be
    used to decrement it.  */
 
-struct cleanup *
+scoped_restore_tmpl<int>
 increment_reading_symtab (void)
 {
-  ++currently_reading_symtab;
-  gdb_assert (currently_reading_symtab > 0);
-  return make_cleanup (decrement_reading_symtab, NULL);
+  gdb_assert (currently_reading_symtab >= 0);
+  return make_scoped_restore (&currently_reading_symtab,
+			      currently_reading_symtab + 1);
 }
 
 /* Remember the lowest-addressed loadable section we've seen.
@@ -876,8 +867,7 @@ read_symbols (struct objfile *objfile, symfile_add_flags add_flags)
       && objfile->separate_debug_objfile == NULL
       && objfile->separate_debug_objfile_backlink == NULL)
     {
-      bfd *abfd = find_separate_debug_file_in_section (objfile);
-      struct cleanup *cleanup = make_cleanup_bfd_unref (abfd);
+      gdb_bfd_ref_ptr abfd (find_separate_debug_file_in_section (objfile));
 
       if (abfd != NULL)
 	{
@@ -885,11 +875,9 @@ read_symbols (struct objfile *objfile, symfile_add_flags add_flags)
 	     virtual section-as-bfd like the bfd filename containing the
 	     section.  Therefore use also non-canonical name form for the same
 	     file containing the section.  */
-	  symbol_file_add_separate (abfd, objfile->original_name, add_flags,
-				    objfile);
+	  symbol_file_add_separate (abfd.get (), objfile->original_name,
+				    add_flags, objfile);
 	}
-
-      do_cleanups (cleanup);
     }
   if ((add_flags & SYMFILE_NO_READ) == 0)
     require_partial_symbols (objfile, 0);
@@ -1287,13 +1275,10 @@ struct objfile *
 symbol_file_add (const char *name, symfile_add_flags add_flags,
 		 struct section_addr_info *addrs, objfile_flags flags)
 {
-  bfd *bfd = symfile_bfd_open (name);
-  struct cleanup *cleanup = make_cleanup_bfd_unref (bfd);
-  struct objfile *objf;
+  gdb_bfd_ref_ptr bfd (symfile_bfd_open (name));
 
-  objf = symbol_file_add_from_bfd (bfd, name, add_flags, addrs, flags, NULL);
-  do_cleanups (cleanup);
-  return objf;
+  return symbol_file_add_from_bfd (bfd.get (), name, add_flags, addrs,
+				   flags, NULL);
 }
 
 /* Call symbol_file_add() with default values and update whatever is
@@ -1354,7 +1339,6 @@ separate_debug_file_exists (const char *name, unsigned long crc,
 {
   unsigned long file_crc;
   int file_crc_p;
-  bfd *abfd;
   struct stat parent_stat, abfd_stat;
   int verified_as_different;
 
@@ -1367,9 +1351,9 @@ separate_debug_file_exists (const char *name, unsigned long crc,
   if (filename_cmp (name, objfile_name (parent_objfile)) == 0)
     return 0;
 
-  abfd = gdb_bfd_open (name, gnutarget, -1);
+  gdb_bfd_ref_ptr abfd (gdb_bfd_open (name, gnutarget, -1));
 
-  if (!abfd)
+  if (abfd == NULL)
     return 0;
 
   /* Verify symlinks were not the cause of filename_cmp name difference above.
@@ -1383,24 +1367,19 @@ separate_debug_file_exists (const char *name, unsigned long crc,
      numbers will never set st_ino to zero, this is merely an
      optimization, so we do not need to worry about false negatives.  */
 
-  if (bfd_stat (abfd, &abfd_stat) == 0
+  if (bfd_stat (abfd.get (), &abfd_stat) == 0
       && abfd_stat.st_ino != 0
       && bfd_stat (parent_objfile->obfd, &parent_stat) == 0)
     {
       if (abfd_stat.st_dev == parent_stat.st_dev
 	  && abfd_stat.st_ino == parent_stat.st_ino)
-	{
-	  gdb_bfd_unref (abfd);
-	  return 0;
-	}
+	return 0;
       verified_as_different = 1;
     }
   else
     verified_as_different = 0;
 
-  file_crc_p = gdb_bfd_crc (abfd, &file_crc);
-
-  gdb_bfd_unref (abfd);
+  file_crc_p = gdb_bfd_crc (abfd.get (), &file_crc);
 
   if (!file_crc_p)
     return 0;
@@ -1721,10 +1700,9 @@ set_initial_language (void)
    includes a newly malloc'd` copy of NAME (tilde-expanded and made
    absolute).  In case of trouble, error() is called.  */
 
-bfd *
+gdb_bfd_ref_ptr
 symfile_bfd_open (const char *name)
 {
-  bfd *sym_bfd;
   int desc = -1;
   struct cleanup *back_to = make_cleanup (null_cleanup, 0);
 
@@ -1760,20 +1738,17 @@ symfile_bfd_open (const char *name)
       name = absolute_name;
     }
 
-  sym_bfd = gdb_bfd_open (name, gnutarget, desc);
-  if (!sym_bfd)
+  gdb_bfd_ref_ptr sym_bfd (gdb_bfd_open (name, gnutarget, desc));
+  if (sym_bfd == NULL)
     error (_("`%s': can't open to read symbols: %s."), name,
 	   bfd_errmsg (bfd_get_error ()));
 
-  if (!gdb_bfd_has_target_filename (sym_bfd))
-    bfd_set_cacheable (sym_bfd, 1);
+  if (!gdb_bfd_has_target_filename (sym_bfd.get ()))
+    bfd_set_cacheable (sym_bfd.get (), 1);
 
-  if (!bfd_check_format (sym_bfd, bfd_object))
-    {
-      make_cleanup_bfd_unref (sym_bfd);
-      error (_("`%s': can't read symbols: %s."), name,
-	     bfd_errmsg (bfd_get_error ()));
-    }
+  if (!bfd_check_format (sym_bfd.get (), bfd_object))
+    error (_("`%s': can't read symbols: %s."), name,
+	   bfd_errmsg (bfd_get_error ()));
 
   do_cleanups (back_to);
 
@@ -1784,7 +1759,7 @@ symfile_bfd_open (const char *name)
    the section was not found.  */
 
 int
-get_section_index (struct objfile *objfile, char *section_name)
+get_section_index (struct objfile *objfile, const char *section_name)
 {
   asection *sect = bfd_get_section_by_name (objfile->obfd, section_name);
 
@@ -2074,7 +2049,6 @@ static void print_transfer_performance (struct ui_file *stream,
 void
 generic_load (const char *args, int from_tty)
 {
-  bfd *loadfile_bfd;
   char *filename;
   struct cleanup *old_cleanups = make_cleanup (null_cleanup, 0);
   struct load_section_data cbdata;
@@ -2115,25 +2089,23 @@ generic_load (const char *args, int from_tty)
     }
 
   /* Open the file for loading.  */
-  loadfile_bfd = gdb_bfd_open (filename, gnutarget, -1);
+  gdb_bfd_ref_ptr loadfile_bfd (gdb_bfd_open (filename, gnutarget, -1));
   if (loadfile_bfd == NULL)
     {
       perror_with_name (filename);
       return;
     }
 
-  make_cleanup_bfd_unref (loadfile_bfd);
-
-  if (!bfd_check_format (loadfile_bfd, bfd_object))
+  if (!bfd_check_format (loadfile_bfd.get (), bfd_object))
     {
       error (_("\"%s\" is not an object file: %s"), filename,
 	     bfd_errmsg (bfd_get_error ()));
     }
 
-  bfd_map_over_sections (loadfile_bfd, add_section_size_callback,
+  bfd_map_over_sections (loadfile_bfd.get (), add_section_size_callback,
 			 (void *) &total_progress.total_size);
 
-  bfd_map_over_sections (loadfile_bfd, load_section_callback, &cbdata);
+  bfd_map_over_sections (loadfile_bfd.get (), load_section_callback, &cbdata);
 
   using namespace std::chrono;
 
@@ -2145,7 +2117,7 @@ generic_load (const char *args, int from_tty)
 
   steady_clock::time_point end_time = steady_clock::now ();
 
-  entry = bfd_get_start_address (loadfile_bfd);
+  entry = bfd_get_start_address (loadfile_bfd.get ());
   entry = gdbarch_addr_bits_remove (target_gdbarch (), entry);
   uiout->text ("Start address ");
   uiout->field_fmt ("address", "%s", paddress (target_gdbarch (), entry));
@@ -2254,8 +2226,8 @@ add_symbol_file_command (char *args, int from_tty)
 
   struct sect_opt
   {
-    char *name;
-    char *value;
+    const char *name;
+    const char *value;
   };
 
   struct section_addr_info *section_addrs;
@@ -2352,14 +2324,14 @@ add_symbol_file_command (char *args, int from_tty)
   for (i = 0; i < section_index; i++)
     {
       CORE_ADDR addr;
-      char *val = sect_opts[i].value;
-      char *sec = sect_opts[i].name;
+      const char *val = sect_opts[i].value;
+      const char *sec = sect_opts[i].name;
 
       addr = parse_and_eval_address (val);
 
       /* Here we store the section offsets in the order they were
          entered on the command line.  */
-      section_addrs->other[sec_num].name = sec;
+      section_addrs->other[sec_num].name = (char *) sec;
       section_addrs->other[sec_num].addr = addr;
       printf_unfiltered ("\t%s_addr = %s\n", sec,
 			 paddress (gdbarch, addr));
@@ -2462,10 +2434,6 @@ remove_symbol_file_command (char *args, int from_tty)
   do_cleanups (my_cleanups);
 }
 
-typedef struct objfile *objfilep;
-
-DEF_VEC_P (objfilep);
-
 /* Re-read symbols if a symbol-file has changed.  */
 
 void
@@ -2475,10 +2443,7 @@ reread_symbols (void)
   long new_modtime;
   struct stat new_statbuf;
   int res;
-  VEC (objfilep) *new_objfiles = NULL;
-  struct cleanup *all_cleanups;
-
-  all_cleanups = make_cleanup (VEC_cleanup (objfilep), &new_objfiles);
+  std::vector<struct objfile *> new_objfiles;
 
   /* With the addition of shared libraries, this should be modified,
      the load time should be saved in the partial symbol tables, since
@@ -2569,22 +2534,16 @@ reread_symbols (void)
 
 	  /* Clean up any state BFD has sitting around.  */
 	  {
-	    struct bfd *obfd = objfile->obfd;
+	    gdb_bfd_ref_ptr obfd (objfile->obfd);
 	    char *obfd_filename;
 
 	    obfd_filename = bfd_get_filename (objfile->obfd);
 	    /* Open the new BFD before freeing the old one, so that
 	       the filename remains live.  */
-	    objfile->obfd = gdb_bfd_open (obfd_filename, gnutarget, -1);
+	    gdb_bfd_ref_ptr temp (gdb_bfd_open (obfd_filename, gnutarget, -1));
+	    objfile->obfd = temp.release ();
 	    if (objfile->obfd == NULL)
-	      {
-		/* We have to make a cleanup and error here, rather
-		   than erroring later, because once we unref OBFD,
-		   OBFD_FILENAME will be freed.  */
-		make_cleanup_bfd_unref (obfd);
-		error (_("Can't open %s to read symbols."), obfd_filename);
-	      }
-	    gdb_bfd_unref (obfd);
+	      error (_("Can't open %s to read symbols."), obfd_filename);
 	  }
 
 	  original_name = xstrdup (objfile->original_name);
@@ -2695,14 +2654,12 @@ reread_symbols (void)
 	  objfile->mtime = new_modtime;
 	  init_entry_point_info (objfile);
 
-	  VEC_safe_push (objfilep, new_objfiles, objfile);
+	  new_objfiles.push_back (objfile);
 	}
     }
 
-  if (new_objfiles)
+  if (!new_objfiles.empty ())
     {
-      int ix;
-
       /* Notify objfiles that we've modified objfile sections.  */
       objfiles_changed ();
 
@@ -2711,15 +2668,13 @@ reread_symbols (void)
       /* clear_objfile_data for each objfile was called before freeing it and
 	 observer_notify_new_objfile (NULL) has been called by
 	 clear_symtab_users above.  Notify the new files now.  */
-      for (ix = 0; VEC_iterate (objfilep, new_objfiles, ix, objfile); ix++)
-	observer_notify_new_objfile (objfile);
+      for (auto iter : new_objfiles)
+	observer_notify_new_objfile (iter);
 
       /* At least one objfile has changed, so we can consider that
          the executable we're debugging has changed too.  */
       observer_notify_executable_changed ();
     }
-
-  do_cleanups (all_cleanups);
 }
 
 
@@ -3881,11 +3836,11 @@ symfile_free_objfile (struct objfile *objfile)
    See quick_symbol_functions.expand_symtabs_matching for details.  */
 
 void
-expand_symtabs_matching (expand_symtabs_file_matcher_ftype *file_matcher,
-			 expand_symtabs_symbol_matcher_ftype *symbol_matcher,
-			 expand_symtabs_exp_notify_ftype *expansion_notify,
-			 enum search_domain kind,
-			 void *data)
+expand_symtabs_matching
+  (gdb::function_view<expand_symtabs_file_matcher_ftype> file_matcher,
+   gdb::function_view<expand_symtabs_symbol_matcher_ftype> symbol_matcher,
+   gdb::function_view<expand_symtabs_exp_notify_ftype> expansion_notify,
+   enum search_domain kind)
 {
   struct objfile *objfile;
 
@@ -3894,8 +3849,7 @@ expand_symtabs_matching (expand_symtabs_file_matcher_ftype *file_matcher,
     if (objfile->sf)
       objfile->sf->qf->expand_symtabs_matching (objfile, file_matcher,
 						symbol_matcher,
-						expansion_notify, kind,
-						data);
+						expansion_notify, kind);
   }
 }
 
@@ -3952,7 +3906,10 @@ that lies within the boundaries of this symbol file in memory."),
   c = add_cmd ("load", class_files, load_command, _("\
 Dynamically load FILE into the running program, and record its symbols\n\
 for access from GDB.\n\
-A load OFFSET may also be given."), &cmdlist);
+An optional load OFFSET may also be given as a literal address.\n\
+When OFFSET is provided, FILE must also be provided.  FILE can be provided\n\
+on its own.\n\
+Usage: load [FILE] [OFFSET]"), &cmdlist);
   set_cmd_completer (c, filename_completer);
 
   add_prefix_cmd ("overlay", class_support, overlay_command,

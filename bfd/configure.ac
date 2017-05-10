@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 dnl
-dnl   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+dnl   Copyright (C) 2012-2017 Free Software Foundation, Inc.
 dnl
 dnl This file is free software; you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -365,7 +365,7 @@ selarchs="$f"
 # Target backend .o files.
 tb=
 
-elf="elf.lo elflink.lo elf-attrs.lo elf-strtab.lo
+elf="elf.lo elflink.lo elf-attrs.lo elf-strtab.lo elf-properties.lo
      elf-eh-frame.lo dwarf1.lo dwarf2.lo"
 coffgen="coffgen.lo dwarf2.lo"
 coff="cofflink.lo $coffgen"
@@ -606,6 +606,7 @@ do
     powerpc_pei_vec)		 tb="$tb pei-ppc.lo peigen.lo $coff" ;;
     powerpc_pei_le_vec)		 tb="$tb pei-ppc.lo peigen.lo $coff" ;;
     powerpc_xcoff_vec)		 tb="$tb coff-rs6000.lo $xcoff" ;;
+    pru_elf32_vec)		 tb="$tb elf32-pru.lo elf32.lo $elf" ;;
     riscv_elf32_vec)		 tb="$tb elf32-riscv.lo elfxx-riscv.lo elf32.lo $elf" ;;
     riscv_elf64_vec)		 tb="$tb elf64-riscv.lo elf64.lo elfxx-riscv.lo elf32.lo $elf"; target_size=64 ;;
     rl78_elf32_vec)		 tb="$tb elf32-rl78.lo elf32.lo $elf" ;;
@@ -699,6 +700,8 @@ do
     ft32_elf32_vec)		 tb="$tb elf32-ft32.lo elf32.lo $elf" ;;
     visium_elf32_vec)		 tb="$tb elf32-visium.lo elf32.lo $elf" ;;
     w65_coff_vec)		 tb="$tb coff-w65.lo reloc16.lo $coffgen" ;;
+    wasm_vec)                    tb="$tb wasm-module.lo" ;;
+    wasm32_elf32_vec)            tb="$tb elf32-wasm32.lo elf32.lo $elf" ;;
     we32k_coff_vec)		 tb="$tb coff-we32k.lo $coffgen" ;;
     x86_64_coff_vec)		 tb="$tb coff-x86_64.lo $coff"; target_size=64 ;;
     x86_64_elf32_vec)		 tb="$tb elf64-x86-64.lo elf-ifunc.lo elf-nacl.lo elf64.lo elf32.lo $elf"; target_size=64 ;;

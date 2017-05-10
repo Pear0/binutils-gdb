@@ -1,5 +1,5 @@
 /* Renesas RX specific support for 32-bit ELF.
-   Copyright (C) 2008-2016 Free Software Foundation, Inc.
+   Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -3142,8 +3142,9 @@ rx_elf_merge_private_bfd_data (bfd * ibfd, struct bfd_link_info *info)
 	    }
 	  else
 	    {
-	      _bfd_error_handler (_("There is a conflict merging the ELF header flags from %s"),
-				  bfd_get_filename (ibfd));
+	      _bfd_error_handler (_("There is a conflict merging the"
+				    " ELF header flags from %B"),
+				  ibfd);
 	      _bfd_error_handler (_("  the input  file's flags: %s"),
 				  describe_flags (new_flags));
 	      _bfd_error_handler (_("  the output file's flags: %s"),

@@ -1,5 +1,5 @@
 /* BFD back-end for ieee-695 objects.
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
 
    Written by Steve Chamberlain of Cygnus Support.
 
@@ -156,8 +156,7 @@ ieee_write_id (bfd *abfd, const char *id)
     {
       _bfd_error_handler
 	/* xgettext:c-format */
-	(_("%s: string too long (%d chars, max 65535)"),
-	 bfd_get_filename (abfd), length);
+	(_("%B: string too long (%d chars, max 65535)"), abfd, length);
       bfd_set_error (bfd_error_invalid_operation);
       return FALSE;
     }
@@ -291,9 +290,8 @@ ieee_write_expression (bfd *abfd,
 	    {
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%s: unrecognized symbol `%s' flags 0x%x"),
-		 bfd_get_filename (abfd), bfd_asymbol_name (symbol),
-		 symbol->flags);
+		(_("%B: unrecognized symbol `%s' flags 0x%x"),
+		 abfd, bfd_asymbol_name (symbol), symbol->flags);
 	      bfd_set_error (bfd_error_invalid_operation);
 	      return FALSE;
 	    }

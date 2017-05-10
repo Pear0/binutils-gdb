@@ -1,6 +1,6 @@
 /* SPU specific support for 32-bit ELF
 
-   Copyright (C) 2006-2016 Free Software Foundation, Inc.
+   Copyright (C) 2006-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -1019,7 +1019,7 @@ needs_ovl_stub (struct elf_link_hash_entry *h,
 	      _bfd_error_handler
 		/* xgettext:c-format */
 		(_("warning: call to non-function symbol %s defined in %B"),
-		 sym_sec->owner, sym_name);
+		 sym_name, sym_sec->owner);
 
 	    }
 	}

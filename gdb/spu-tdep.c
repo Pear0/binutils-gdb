@@ -1,5 +1,5 @@
 /* SPU target-dependent code for GDB, the GNU debugger.
-   Copyright (C) 2006-2016 Free Software Foundation, Inc.
+   Copyright (C) 2006-2017 Free Software Foundation, Inc.
 
    Contributed by Ulrich Weigand <uweigand@de.ibm.com>.
    Based on a port by Sid Manning <sid@us.ibm.com>.
@@ -33,6 +33,7 @@
 #include "value.h"
 #include "inferior.h"
 #include "dis-asm.h"
+#include "disasm.h"
 #include "objfiles.h"
 #include "language.h"
 #include "regcache.h"
@@ -113,7 +114,7 @@ static struct cmd_list_element *infospucmdlist = NULL;
 static const char *
 spu_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = 
+  static const char *register_names[] =
     {
       "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -1338,6 +1339,7 @@ spu_scalar_value_p (struct type *type)
     case TYPE_CODE_BOOL:
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       return TYPE_LENGTH (type) <= 16;
 
     default:
@@ -1610,7 +1612,7 @@ spu_memory_remove_breakpoint (struct gdbarch *gdbarch,
 
 /* Software single-stepping support.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 spu_software_single_step (struct regcache *regcache)
 {
   struct gdbarch *gdbarch = get_regcache_arch (regcache);
@@ -1620,7 +1622,7 @@ spu_software_single_step (struct regcache *regcache)
   int offset, reg;
   gdb_byte buf[4];
   ULONGEST lslr;
-  VEC (CORE_ADDR) *next_pcs = NULL;
+  std::vector<CORE_ADDR> next_pcs;
 
   pc = regcache_read_pc (regcache);
 
@@ -1643,7 +1645,7 @@ spu_software_single_step (struct regcache *regcache)
   else
     next_pc = (SPUADDR_ADDR (pc) + 4) & lslr;
 
-  VEC_safe_push (CORE_ADDR, next_pcs, SPUADDR (SPUADDR_SPU (pc), next_pc));
+  next_pcs.push_back (SPUADDR (SPUADDR_SPU (pc), next_pc));
 
   if (is_branch (insn, &offset, &reg))
     {
@@ -1656,8 +1658,7 @@ spu_software_single_step (struct regcache *regcache)
 
       target = target & lslr;
       if (target != next_pc)
-	VEC_safe_push (CORE_ADDR, next_pcs, SPUADDR (SPUADDR_SPU (pc),
-						     target));
+	next_pcs.push_back (SPUADDR (SPUADDR_SPU (pc), target));
     }
 
   return next_pcs;
@@ -1693,18 +1694,19 @@ spu_get_longjmp_target (struct frame_info *frame, CORE_ADDR *pc)
 
 /* Disassembler.  */
 
-struct spu_dis_asm_data
+struct spu_dis_asm_info : disassemble_info
 {
-  struct gdbarch *gdbarch;
   int id;
 };
 
 static void
 spu_dis_asm_print_address (bfd_vma addr, struct disassemble_info *info)
 {
-  struct spu_dis_asm_data *data
-    = (struct spu_dis_asm_data *) info->application_data;
-  print_address (data->gdbarch, SPUADDR (data->id, addr),
+  struct spu_dis_asm_info *data = (struct spu_dis_asm_info *) info;
+  gdb_disassembler *di
+    = static_cast<gdb_disassembler *>(info->application_data);
+
+  print_address (di->arch (), SPUADDR (data->id, addr),
 		 (struct ui_file *) info->stream);
 }
 
@@ -1714,12 +1716,10 @@ gdb_print_insn_spu (bfd_vma memaddr, struct disassemble_info *info)
   /* The opcodes disassembler does 18-bit address arithmetic.  Make
      sure the SPU ID encoded in the high bits is added back when we
      call print_address.  */
-  struct disassemble_info spu_info = *info;
-  struct spu_dis_asm_data data;
-  data.gdbarch = (struct gdbarch *) info->application_data;
-  data.id = SPUADDR_SPU (memaddr);
+  struct spu_dis_asm_info spu_info;
 
-  spu_info.application_data = &data;
+  memcpy (&spu_info, info, sizeof (*info));
+  spu_info.id = SPUADDR_SPU (memaddr);
   spu_info.print_address_func = spu_dis_asm_print_address;
   return print_insn_spu (memaddr, &spu_info);
 }
@@ -1933,8 +1933,6 @@ spu_catch_start (struct objfile *objfile)
   struct bound_minimal_symbol minsym;
   struct compunit_symtab *cust;
   CORE_ADDR pc;
-  struct event_location *location;
-  struct cleanup *back_to;
 
   /* Do this only if requested by "set spu stop-on-load on".  */
   if (!spu_stop_on_load_p)
@@ -1978,9 +1976,8 @@ spu_catch_start (struct objfile *objfile)
 
   /* Use a numerical address for the set_breakpoint command to avoid having
      the breakpoint re-set incorrectly.  */
-  location = new_address_location (pc, NULL, 0);
-  back_to = make_cleanup_delete_event_location (location);
-  create_breakpoint (get_objfile_arch (objfile), location,
+  event_location_up location = new_address_location (pc, NULL, 0);
+  create_breakpoint (get_objfile_arch (objfile), location.get (),
 		     NULL /* cond_string */, -1 /* thread */,
 		     NULL /* extra_string */,
 		     0 /* parse_condition_and_thread */, 1 /* tempflag */,
@@ -1989,7 +1986,6 @@ spu_catch_start (struct objfile *objfile)
 		     AUTO_BOOLEAN_FALSE /* pending_break_support */,
 		     &bkpt_breakpoint_ops /* ops */, 0 /* from_tty */,
 		     1 /* enabled */, 0 /* internal  */, 0);
-  do_cleanups (back_to);
 }
 
 
@@ -2299,7 +2295,7 @@ spu_mfc_get_bitfield (ULONGEST word, int first, int last)
 static void
 info_spu_dma_cmdlist (gdb_byte *buf, int nr, enum bfd_endian byte_order)
 {
-  static char *spu_mfc_opcode[256] =
+  static const char *spu_mfc_opcode[256] =
     {
     /* 00 */ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
              NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,

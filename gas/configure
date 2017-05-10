@@ -13164,7 +13164,7 @@ if test "$LEX" = :; then
   LEX=${am_missing_run}flex
 fi
 
-ALL_LINGUAS="fr tr es rw id ru fi ja zh_CN"
+ALL_LINGUAS="fr tr es rw id ru fi ja zh_CN sv"
 # If we haven't got the data from the intl directory,
 # assume NLS is disabled.
 USE_NLS=no
@@ -13894,6 +13894,17 @@ eval as_val=\$$as_ac_var
    if test "x$as_val" = x""yes; then :
   cat >>confdefs.h <<_ACEOF
 #define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+done
+
+for ac_func in strsignal
+do :
+  ac_fn_c_check_func "$LINENO" "strsignal" "ac_cv_func_strsignal"
+if test "x$ac_cv_func_strsignal" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_STRSIGNAL 1
 _ACEOF
 
 fi

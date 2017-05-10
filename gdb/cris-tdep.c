@@ -1,6 +1,6 @@
 /* Target dependent code for CRIS, for GDB, the GNU debugger.
 
-   Copyright (C) 2001-2016 Free Software Foundation, Inc.
+   Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
    Contributed by Axis Communications AB.
    Written by Hendrik Ruijter, Stefan Andersson, and Orjan Friberg.
@@ -1695,7 +1695,7 @@ cris_special_register_name (struct gdbarch *gdbarch, int regno)
 static const char *
 cris_register_name (struct gdbarch *gdbarch, int regno)
 {
-  static char *cris_genreg_names[] =
+  static const char *cris_genreg_names[] =
   { "r0",  "r1",  "r2",  "r3", \
     "r4",  "r5",  "r6",  "r7", \
     "r8",  "r9",  "r10", "r11", \
@@ -1720,14 +1720,14 @@ cris_register_name (struct gdbarch *gdbarch, int regno)
 static const char *
 crisv32_register_name (struct gdbarch *gdbarch, int regno)
 {
-  static char *crisv32_genreg_names[] =
+  static const char *crisv32_genreg_names[] =
     { "r0",  "r1",  "r2",  "r3", \
       "r4",  "r5",  "r6",  "r7", \
       "r8",  "r9",  "r10", "r11", \
       "r12", "r13", "sp",  "acr"
     };
 
-  static char *crisv32_sreg_names[] =
+  static const char *crisv32_sreg_names[] =
     { "s0",  "s1",  "s2",  "s3", \
       "s4",  "s5",  "s6",  "s7", \
       "s8",  "s9",  "s10", "s11", \
@@ -2060,12 +2060,12 @@ find_step_target (struct regcache *regcache, inst_env_type *inst_env)
    digs through the opcodes in order to find all possible targets.
    Either one ordinary target or two targets for branches may be found.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 cris_software_single_step (struct regcache *regcache)
 {
   struct gdbarch *gdbarch = get_regcache_arch (regcache);
   inst_env_type inst_env;
-  VEC (CORE_ADDR) *next_pcs = NULL;
+  std::vector<CORE_ADDR> next_pcs;
 
   /* Analyse the present instruction environment and insert 
      breakpoints.  */
@@ -2083,14 +2083,14 @@ cris_software_single_step (struct regcache *regcache)
       CORE_ADDR next_pc
 	= (CORE_ADDR) inst_env.reg[gdbarch_pc_regnum (gdbarch)];
 
-      VEC_safe_push (CORE_ADDR, next_pcs, next_pc);
+      next_pcs.push_back (next_pc);
       if (inst_env.branch_found 
 	  && (CORE_ADDR) inst_env.branch_break_address != next_pc)
 	{
 	  CORE_ADDR branch_target_address
 		= (CORE_ADDR) inst_env.branch_break_address;
 
-	  VEC_safe_push (CORE_ADDR, next_pcs, branch_target_address);
+	  next_pcs.push_back (branch_target_address);
 	}
     }
 
@@ -4022,31 +4022,14 @@ cris_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   /* No matching architecture was found.  Create a new one.  */
   tdep = XNEW (struct gdbarch_tdep);
+  info.byte_order = BFD_ENDIAN_LITTLE;
   gdbarch = gdbarch_alloc (&info, tdep);
 
   tdep->cris_version = usr_cmd_cris_version;
   tdep->cris_mode = usr_cmd_cris_mode;
   tdep->cris_dwarf2_cfi = usr_cmd_cris_dwarf2_cfi;
 
-  /* INIT shall ensure that the INFO.BYTE_ORDER is non-zero.  */
-  switch (info.byte_order)
-    {
-    case BFD_ENDIAN_LITTLE:
-      /* Ok.  */
-      break;
-
-    case BFD_ENDIAN_BIG:
-      /* Cris is always little endian, but the user could have forced
-	 big endian with "set endian".  */
-      return 0;
-
-    default:
-      internal_error (__FILE__, __LINE__,
-		      _("cris_gdbarch_init: unknown byte order in info"));
-    }
-
   set_gdbarch_return_value (gdbarch, cris_return_value);
-
   set_gdbarch_sp_regnum (gdbarch, 14);
   
   /* Length of ordinary registers used in push_word and a few other

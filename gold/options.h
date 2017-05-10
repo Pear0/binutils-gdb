@@ -1,6 +1,6 @@
 // options.h -- handle command line options for gold  -*- C++ -*-
 
-// Copyright (C) 2006-2016 Free Software Foundation, Inc.
+// Copyright (C) 2006-2017 Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of gold.
@@ -1202,6 +1202,9 @@ class General_options
 
   DEFINE_special(section_start, options::TWO_DASHES, '\0',
 		 N_("Set address of section"), N_("SECTION=ADDRESS"));
+
+  DEFINE_bool(secure_plt, options::TWO_DASHES , '\0', true,
+	      N_("(PowerPC only) Use new-style PLT"), NULL);
 
   DEFINE_optional_string(sort_common, options::TWO_DASHES, '\0', NULL,
 			 N_("Sort common symbols by alignment"),

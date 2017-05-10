@@ -1,6 +1,6 @@
 /* Do various things to symbol tables (other than lookup), for GDB.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -418,7 +418,7 @@ maintenance_print_symbols (char *args, int from_tty)
   argv = gdb_buildargv (args);
   cleanups = make_cleanup_freeargv (argv);
 
-  for (i = 0; argv[i] != NULL; ++i)
+  for (i = 0; argv != NULL && argv[i] != NULL; ++i)
     {
       if (strcmp (argv[i], "-pc") == 0)
 	{
@@ -457,7 +457,9 @@ maintenance_print_symbols (char *args, int from_tty)
   if (address_arg != NULL && source_arg != NULL)
     error (_("Must specify at most one of -pc and -source"));
 
-  if (argv[outfile_idx] != NULL)
+  stdio_file arg_outfile;
+
+  if (argv != NULL && argv[outfile_idx] != NULL)
     {
       char *outfile_name;
 
@@ -465,10 +467,9 @@ maintenance_print_symbols (char *args, int from_tty)
 	error (_("Junk at end of command"));
       outfile_name = tilde_expand (argv[outfile_idx]);
       make_cleanup (xfree, outfile_name);
-      outfile = gdb_fopen (outfile_name, FOPEN_WT);
-      if (outfile == NULL)
+      if (!arg_outfile.open (outfile_name, FOPEN_WT))
 	perror_with_name (outfile_name);
-      make_cleanup_ui_file_delete (outfile);
+      outfile = &arg_outfile;
     }
 
   if (address_arg != NULL)
@@ -720,7 +721,7 @@ maintenance_print_msymbols (char *args, int from_tty)
   argv = gdb_buildargv (args);
   cleanups = make_cleanup_freeargv (argv);
 
-  for (i = 0; argv[i] != NULL; ++i)
+  for (i = 0; argv != NULL && argv[i] != NULL; ++i)
     {
       if (strcmp (argv[i], "-objfile") == 0)
 	{
@@ -744,7 +745,9 @@ maintenance_print_msymbols (char *args, int from_tty)
     }
   outfile_idx = i;
 
-  if (argv[outfile_idx] != NULL)
+  stdio_file arg_outfile;
+
+  if (argv != NULL && argv[outfile_idx] != NULL)
     {
       char *outfile_name;
 
@@ -752,10 +755,9 @@ maintenance_print_msymbols (char *args, int from_tty)
 	error (_("Junk at end of command"));
       outfile_name = tilde_expand (argv[outfile_idx]);
       make_cleanup (xfree, outfile_name);
-      outfile = gdb_fopen (outfile_name, FOPEN_WT);
-      if (outfile == NULL)
+      if (!arg_outfile.open (outfile_name, FOPEN_WT))
 	perror_with_name (outfile_name);
-      make_cleanup_ui_file_delete (outfile);
+      outfile = &arg_outfile;
     }
 
   ALL_OBJFILES (objfile)
@@ -935,37 +937,6 @@ maintenance_check_symtabs (char *ignore, int from_tty)
     }
 }
 
-/* Helper function for maintenance_expand_symtabs.
-   This is the name_matcher function for expand_symtabs_matching.  */
-
-static int
-maintenance_expand_name_matcher (const char *symname, void *data)
-{
-  /* Since we're not searching on symbols, just return TRUE.  */
-  return 1;
-}
-
-/* Helper function for maintenance_expand_symtabs.
-   This is the file_matcher function for expand_symtabs_matching.  */
-
-static int
-maintenance_expand_file_matcher (const char *filename, void *data,
-				 int basenames)
-{
-  const char *regexp = (const char *) data;
-
-  QUIT;
-
-  /* KISS: Only apply the regexp to the complete file name.  */
-  if (basenames)
-    return 0;
-
-  if (regexp == NULL || re_exec (filename))
-    return 1;
-
-  return 0;
-}
-
 /* Expand all symbol tables whose name matches an optional regexp.  */
 
 static void
@@ -1001,8 +972,20 @@ maintenance_expand_symtabs (char *args, int from_tty)
       if (objfile->sf)
 	{
 	  objfile->sf->qf->expand_symtabs_matching
-	    (objfile, maintenance_expand_file_matcher,
-	     maintenance_expand_name_matcher, NULL, ALL_DOMAIN, regexp);
+	    (objfile,
+	     [&] (const char *filename, bool basenames)
+	     {
+	       /* KISS: Only apply the regexp to the complete file name.  */
+	       return (!basenames
+		       && (regexp == NULL || re_exec (filename)));
+	     },
+	     [] (const char *symname)
+	     {
+	       /* Since we're not searching on symbols, just return true.  */
+	       return true;
+	     },
+	     NULL,
+	     ALL_DOMAIN);
 	}
     }
 

@@ -1,5 +1,5 @@
 /* tc-arc.c -- Assembler for the ARC
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
    Contributor: Claudiu Zissulescu <claziss@synopsys.com>
 
@@ -1195,7 +1195,7 @@ tokenize_arguments (char *str,
 
 	relocationsym:
 
-	  /* A relocation opernad has the following form
+	  /* A relocation operand has the following form
 	     @identifier@relocation_type.  The identifier is already
 	     in tok!  */
 	  if (tok->X_op != O_symbol)
@@ -1612,7 +1612,7 @@ allocate_tok (expressionS *tok, int ntok, int cidx)
     return 0; /* No space left.  */
 
   if (cidx > ntok)
-    return 0; /* Incorect args.  */
+    return 0; /* Incorrect args.  */
 
   memcpy (&tok[ntok+1], &tok[ntok], sizeof (*tok));
 
@@ -1670,6 +1670,10 @@ parse_opcode_flags (const struct arc_opcode *opcode,
       const unsigned *flgopridx;
       int cl_matches = 0;
       struct arc_flags *pflag = NULL;
+
+      /* Check if opcode has implicit flag classes.  */
+      if (cl_flags->flag_class & F_CLASS_IMPLICIT)
+	continue;
 
       /* Check for extension conditional codes.  */
       if (ext_condcode.arc_ext_condcode
@@ -1938,7 +1942,7 @@ find_opcode_match (const struct arc_opcode_hash_entry *entry,
 		      if (val < min || val > max)
 			goto match_failed;
 
-		      /* Check alignmets.  */
+		      /* Check alignments.  */
 		      if ((operand->flags & ARC_OPERAND_ALIGNED32)
 			  && (val & 0x03))
 			goto match_failed;
@@ -2341,7 +2345,7 @@ find_special_case (const char *opname,
   return entry;
 }
 
-/* Given an opcode name, pre-tockenized set of argumenst and the
+/* Given an opcode name, pre-tokenized set of arguments and the
    opcode flags, take it all the way through emission.  */
 
 static void
@@ -2412,7 +2416,7 @@ md_assemble (char *str)
   opnamelen = strspn (str, "abcdefghijklmnopqrstuvwxyz_0123468");
   opname = xmemdup0 (str, opnamelen);
 
-  /* Signalize we are assmbling the instructions.  */
+  /* Signalize we are assembling the instructions.  */
   assembling_insn = TRUE;
 
   /* Tokenize the flags.  */
@@ -2725,7 +2729,7 @@ md_pcrel_from_section (fixS *fixP,
   return base;
 }
 
-/* Given a BFD relocation find the coresponding operand.  */
+/* Given a BFD relocation find the corresponding operand.  */
 
 static const struct arc_operand *
 find_operand_for_reloc (extended_bfd_reloc_code_real_type reloc)
@@ -2769,7 +2773,7 @@ insert_operand (unsigned long long insn,
 				   val, min, max, file, line);
     }
 
-  pr_debug ("insert field: %ld <= %ld <= %ld in 0x%08llx\n",
+  pr_debug ("insert field: %ld <= %lld <= %ld in 0x%08llx\n",
 	    min, val, max, insn);
 
   if ((operand->flags & ARC_OPERAND_ALIGNED32)
@@ -2902,7 +2906,7 @@ md_apply_fix (fixS *fixP,
 	case BFD_RELOC_ARC_32_ME:
 	  /* This is a pc-relative value in a LIMM.  Adjust it to the
 	     address of the instruction not to the address of the
-	     LIMM.  Note: it is not anylonger valid this afirmation as
+	     LIMM.  Note: it is not any longer valid this affirmation as
 	     the linker consider ARC_PC32 a fixup to entire 64 bit
 	     insn.  */
 	  fixP->fx_offset += fixP->fx_frag->fr_address;
@@ -2971,7 +2975,7 @@ md_apply_fix (fixS *fixP,
       return;
     }
 
-  /* Addjust the value if we have a constant.  */
+  /* Adjust the value if we have a constant.  */
   value += fx_offset;
 
   /* For hosts with longs bigger than 32-bits make sure that the top
@@ -3892,7 +3896,7 @@ assemble_insn (const struct arc_opcode *opcode,
 	    case O_plt:
 	      if (opcode->insn_class == JUMP)
 		as_bad_where (frag_now->fr_file, frag_now->fr_line,
-			      _("Unable to use @plt relocatio for insn %s"),
+			      _("Unable to use @plt relocation for insn %s"),
 			      opcode->name);
 	      needGOTSymbol = TRUE;
 	      reloc = find_reloc ("plt", opcode->name,
@@ -3906,12 +3910,22 @@ assemble_insn (const struct arc_opcode *opcode,
 	      reloc = ARC_RELOC_TABLE (t->X_md)->reloc;
 	      break;
 	    case O_pcl:
-	      reloc = ARC_RELOC_TABLE (t->X_md)->reloc;
-	      if (arc_opcode_len (opcode) == 2
-		  || opcode->insn_class == JUMP)
-		as_bad_where (frag_now->fr_file, frag_now->fr_line,
-			      _("Unable to use @pcl relocation for insn %s"),
-			      opcode->name);
+	      if (operand->flags & ARC_OPERAND_LIMM)
+		{
+		  reloc = ARC_RELOC_TABLE (t->X_md)->reloc;
+		  if (arc_opcode_len (opcode) == 2
+		      || opcode->insn_class == JUMP)
+		    as_bad_where (frag_now->fr_file, frag_now->fr_line,
+				  _("Unable to use @pcl relocation for insn %s"),
+				  opcode->name);
+		}
+	      else
+		{
+		  /* This is a relaxed operand which initially was
+		     limm, choose whatever we have defined in the
+		     opcode as reloc.  */
+		  reloc = operand->default_reloc;
+		}
 	      break;
 	    case O_sda:
 	      reloc = find_reloc ("sda", opcode->name,
@@ -3971,7 +3985,15 @@ assemble_insn (const struct arc_opcode *opcode,
 	  fixup = &insn->fixups[insn->nfixups++];
 	  fixup->exp = *t;
 	  fixup->reloc = reloc;
-	  pcrel = (operand->flags & ARC_OPERAND_PCREL) ? 1 : 0;
+	  if ((int) reloc < 0)
+	    pcrel = (operand->flags & ARC_OPERAND_PCREL) ? 1 : 0;
+	  else
+	    {
+	      reloc_howto_type *reloc_howto =
+		bfd_reloc_type_lookup (stdoutput,
+				       (bfd_reloc_code_real_type) fixup->reloc);
+	      pcrel = reloc_howto->pc_relative;
+	    }
 	  fixup->pcrel = pcrel;
 	  fixup->islong = (operand->flags & ARC_OPERAND_LIMM) ?
 	    TRUE : FALSE;
@@ -3988,11 +4010,19 @@ assemble_insn (const struct arc_opcode *opcode,
       if (!strcmp (flg_operand->name, "d"))
 	has_delay_slot = TRUE;
 
-      /* There is an exceptional case when we cannot insert a flag
-	 just as it is.  The .T flag must be handled in relation with
-	 the relative address.  */
-      if (!strcmp (flg_operand->name, "t")
-	  || !strcmp (flg_operand->name, "nt"))
+      /* There is an exceptional case when we cannot insert a flag just as
+	 it is.  On ARCv2 the '.t' and '.nt' flags must be handled in
+	 relation with the relative address.  Unfortunately, some of the
+	 ARC700 extensions (NPS400) also have a '.nt' flag that should be
+	 handled in the normal way.
+
+	 Flag operands don't have an architecture field, so we can't
+	 directly validate that FLAG_OPERAND is valid for the current
+	 architecture, what we do instead is just validate that we're
+	 assembling for an ARCv2 architecture.  */
+      if ((selected_cpu.flags & ARC_OPCODE_ARCV2)
+	  && (!strcmp (flg_operand->name, "t")
+	      || !strcmp (flg_operand->name, "nt")))
 	{
 	  unsigned bitYoperand = 0;
 	  /* FIXME! move selection bbit/brcc in arc-opc.c.  */
@@ -4230,10 +4260,15 @@ arc_frob_label (symbolS * sym)
 int
 arc_pcrel_adjust (fragS *fragP)
 {
+  pr_debug ("arc_pcrel_adjust: address=%ld, fix=%ld, PCrel %s\n",
+	    fragP->fr_address, fragP->fr_fix,
+	    fragP->tc_frag_data.pcrel ? "Y" : "N");
+
   if (!fragP->tc_frag_data.pcrel)
     return fragP->fr_address + fragP->fr_fix;
 
-  return 0;
+  /* Take into account the PCL rounding.  */
+  return (fragP->fr_address + fragP->fr_fix) & 0x03;
 }
 
 /* Initialize the DWARF-2 unwind information for this procedure.  */
@@ -4679,7 +4714,7 @@ tokenize_extregister (extRegister_t *ereg, int opertype)
    [2]: Value.
    [3]+ Name.
 
-   For auxilirary registers:
+   For auxiliary registers:
    [2..5]: Value.
    [6]+ Name
 

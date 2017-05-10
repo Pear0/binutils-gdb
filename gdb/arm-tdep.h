@@ -1,5 +1,5 @@
 /* Common target dependent code for GDB on ARM systems.
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -28,6 +28,8 @@ struct arm_get_next_pcs;
 struct gdb_get_next_pcs;
 
 #include "arch/arm.h"
+
+#include <vector>
 
 /* Say how long FP registers are.  Used for documentation purposes and
    code readability in this header.  IEEE extended doubles are 80
@@ -259,7 +261,7 @@ CORE_ADDR arm_get_next_pcs_addr_bits_remove (struct arm_get_next_pcs *self,
 
 int arm_get_next_pcs_is_thumb (struct arm_get_next_pcs *self);
 
-VEC (CORE_ADDR) *arm_software_single_step (struct regcache *);
+std::vector<CORE_ADDR> arm_software_single_step (struct regcache *);
 int arm_is_thumb (struct regcache *regcache);
 int arm_frame_is_thumb (struct frame_info *frame);
 

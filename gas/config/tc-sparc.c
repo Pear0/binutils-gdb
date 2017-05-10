@@ -1,5 +1,5 @@
 /* tc-sparc.c -- Assemble for the SPARC
-   Copyright (C) 1989-2016 Free Software Foundation, Inc.
+   Copyright (C) 1989-2017 Free Software Foundation, Inc.
    This file is part of GAS, the GNU Assembler.
 
    GAS is free software; you can redistribute it and/or modify
@@ -36,6 +36,7 @@
 #define U0x80000000 ((((unsigned long) 1 << 16) << 15))
 
 static int sparc_ip (char *, const struct sparc_opcode **);
+static int parse_sparc_asi (char **, const sparc_asi **);
 static int parse_keyword_arg (int (*) (const char *), char **, int *);
 static int parse_const_expr_arg (char **, int *);
 static int get_expression (char *);
@@ -1130,7 +1131,7 @@ md_begin (void)
 	p->pop = &pop_table[i];
       }
 
-    /* Last entry is the centinel.  */
+    /* Last entry is the sentinel.  */
     perc_table[entry].type = perc_entry_none;
 
     qsort (perc_table, sizeof (perc_table) / sizeof (perc_table[0]),
@@ -1764,6 +1765,7 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
   int comma = 0;
   int v9_arg_p;
   int special_case = SPECIAL_CASE_NONE;
+  const sparc_asi *sasi = NULL;
 
   s = str;
   if (ISLOWER (*s))
@@ -2969,11 +2971,12 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
 		/* Parse an asi.  */
 		if (*s == '#')
 		  {
-		    if (! parse_keyword_arg (sparc_encode_asi, &s, &asi))
+		    if (! parse_sparc_asi (&s, &sasi))
 		      {
 			error_message = _(": invalid ASI name");
 			goto error;
 		      }
+		    asi = sasi->value;
 		  }
 		else
 		  {
@@ -3147,8 +3150,18 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
       else
 	{
 	  /* We have a match.  Now see if the architecture is OK.  */
+	  /* String to use in case of architecture warning.  */
+	  const char *msg_str = str;
 	  int needed_arch_mask = insn->architecture;
-	  bfd_uint64_t hwcaps
+
+          /* Include the ASI architecture needed as well */
+          if (sasi && needed_arch_mask > sasi->architecture)
+            {
+              needed_arch_mask = sasi->architecture;
+              msg_str = sasi->name;
+            }
+
+          bfd_uint64_t hwcaps
 	    = (((bfd_uint64_t) insn->hwcaps2) << 32) | insn->hwcaps;
 
 #if defined(OBJ_ELF) && !defined(TE_SOLARIS)
@@ -3183,7 +3196,7 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
 		  as_warn (_("architecture bumped from \"%s\" to \"%s\" on \"%s\""),
 			   sparc_opcode_archs[current_architecture].name,
 			   sparc_opcode_archs[needed_architecture].name,
-			   str);
+			   msg_str);
 		  warn_after_architecture = needed_architecture;
 		}
 	      current_architecture = needed_architecture;
@@ -3222,7 +3235,7 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
 		}
 
 	      as_bad (_("Architecture mismatch on \"%s %s\"."), str, argsStart);
-	      as_tsktsk (_(" (Requires %s; requested architecture is %s.)"),
+	      as_tsktsk (_("(Requires %s; requested architecture is %s.)"),
 			 required_archs,
 			 sparc_opcode_archs[max_architecture].name);
 	      return special_case;
@@ -3247,6 +3260,35 @@ sparc_ip (char *str, const struct sparc_opcode **pinsn)
   return special_case;
 }
 
+static char *
+skip_over_keyword (char *q)
+{
+  for (q = q + (*q == '#' || *q == '%');
+       ISALNUM (*q) || *q == '_';
+       ++q)
+    continue;
+  return q;
+}
+
+static int
+parse_sparc_asi (char **input_pointer_p, const sparc_asi **value_p)
+{
+  const sparc_asi *value;
+  char c, *p, *q;
+
+  p = *input_pointer_p;
+  q = skip_over_keyword(p);
+  c = *q;
+  *q = 0;
+  value = sparc_encode_asi (p);
+  *q = c;
+  if (value == NULL)
+    return 0;
+  *value_p = value;
+  *input_pointer_p = q;
+  return 1;
+}
+
 /* Parse an argument that can be expressed as a keyword.
    (eg: #StoreStore or %ccfr).
    The result is a boolean indicating success.
@@ -3261,10 +3303,7 @@ parse_keyword_arg (int (*lookup_fn) (const char *),
   char c, *p, *q;
 
   p = *input_pointerP;
-  for (q = p + (*p == '#' || *p == '%');
-       ISALNUM (*q) || *q == '_';
-       ++q)
-    continue;
+  q = skip_over_keyword(p);
   c = *q;
   *q = 0;
   value = (*lookup_fn) (p);
@@ -3545,8 +3584,13 @@ md_apply_fix (fixS *fixP, valueT *valP, segT segment ATTRIBUTE_UNUSED)
 
 	  insn |= val & 0x3fffffff;
 
-	  /* See if we have a delay slot.  */
-	  if (sparc_relax && fixP->fx_where + 8 <= fixP->fx_frag->fr_fix)
+	  /* See if we have a delay slot.  In that case we attempt to
+             optimize several cases transforming CALL instructions
+             into branches.  But we can only do that if the relocation
+             can be completely resolved here, i.e. if no undefined
+             symbol is associated with it.  */
+	  if (sparc_relax && fixP->fx_addsy == NULL
+	      && fixP->fx_where + 8 <= fixP->fx_frag->fr_fix)
 	    {
 #define G0		0
 #define O7		15

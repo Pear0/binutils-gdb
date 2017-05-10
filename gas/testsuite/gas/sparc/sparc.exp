@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2016 Free Software Foundation, Inc.
+# Copyright (C) 2012-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -72,6 +72,10 @@ if [istarget sparc*-*-*] {
         run_dump_test "v9branch1"
         run_dump_test "imm-plus-rreg"
         run_dump_test "dcti-couples-v9"
+        run_dump_test "call-relax"
+    } else {
+        # The next tests are a.out only.
+        run_dump_test "call-relax-aout"
     }
 
     if [gas_64_check] {
@@ -92,6 +96,8 @@ if [istarget sparc*-*-*] {
 	run_dump_test "plt64"
 	run_dump_test "gotop64"
         run_list_test "hwcaps-bump" "-64 -bump"
+        run_list_test "asi-bump-warn" "-bump"
+        run_list_test "asi-arch-error" "-Av9"
     }
 
     run_dump_test "synth"

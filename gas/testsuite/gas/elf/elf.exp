@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2016 Free Software Foundation, Inc.
+# Copyright (C) 2012-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -209,6 +209,9 @@ if { [is_elf_format] } then {
     run_dump_test "section9"
     run_dump_test "section10"
     run_dump_test "section11"
+    run_dump_test "section12a"
+    run_dump_test "section12b"
+    run_dump_test "section13"
     run_dump_test "dwarf2-1"
     run_dump_test "dwarf2-2"
     run_dump_test "dwarf2-3"

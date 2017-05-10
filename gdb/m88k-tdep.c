@@ -1,6 +1,6 @@
 /* Target-dependent code for the Motorola 88000 series.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -49,7 +49,7 @@ m88k_fetch_instruction (CORE_ADDR pc, enum bfd_endian byte_order)
 static const char *
 m88k_register_name (struct gdbarch *gdbarch, int regnum)
 {
-  static char *register_names[] =
+  static const char *register_names[] =
   {
     "r0",  "r1",  "r2",  "r3",  "r4",  "r5",  "r6",  "r7",
     "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15",
@@ -161,6 +161,7 @@ m88k_integral_or_pointer_p (const struct type *type)
       return 1;
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       {
 	/* Allow only 32-bit pointers.  */
 	return (TYPE_LENGTH (type) == 4);

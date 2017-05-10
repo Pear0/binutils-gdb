@@ -1,5 +1,5 @@
 /* write.c - emit .o file
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -18,7 +18,7 @@
    Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
    02110-1301, USA.  */
 
-/* This thing should be set up to do byteordering correctly.  But...  */
+/* This thing should be set up to do byte ordering correctly.  But...  */
 
 #include "as.h"
 #include "subsegs.h"
@@ -2692,7 +2692,11 @@ relax_segment (struct frag *segment_frag_root, segT segment, int pass)
 		  know (fragP->fr_next);
 		  after = fragP->fr_next->fr_address + stretch;
 		  growth = target - after;
-		  if (growth < 0)
+
+		  /* Growth may be negative, but variable part of frag
+		     cannot have fewer than 0 chars.  That is, we can't
+		     .org backwards.  */
+		  if (address + fragP->fr_fix > target)
 		    {
 		      growth = 0;
 
@@ -2714,9 +2718,6 @@ relax_segment (struct frag *segment_frag_root, segT segment, int pass)
 			  break;
 			}
 
-		      /* Growth may be negative, but variable part of frag
-			 cannot have fewer than 0 chars.  That is, we can't
-			 .org backwards.  */
 		      as_bad_where (fragP->fr_file, fragP->fr_line,
 				    _("attempt to move .org backwards"));
 

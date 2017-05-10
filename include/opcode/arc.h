@@ -1,5 +1,5 @@
 /* Opcode table for the ARC.
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
    Contributed by Claudiu Zissulescu (claziss@synopsys.com)
 
@@ -42,27 +42,43 @@ typedef enum
   ACL,
   ARITH,
   AUXREG,
+  BBIT0,
+  BBIT1,
+  BI,
+  BIH,
   BITOP,
   BITSTREAM,
   BMU,
   BRANCH,
+  BRCC,
   CONTROL,
   DIVREM,
+  DMA,
   DPI,
   DSP,
+  EI,
+  ENTER,
   FLOAT,
   INVALID,
+  JLI,
   JUMP,
   KERNEL,
+  LEAVE,
   LOAD,
   LOGICAL,
+  LOOP,
   MEMORY,
+  MISC,
   MOVE,
   MPY,
   NET,
   PROTOCOL_DECODE,
   PMU,
+  POP,
+  PUSH,
   STORE,
+  SUB,
+  ULTRAIP,
   XY
 } insn_class_t;
 
@@ -111,14 +127,23 @@ typedef enum
   F_CLASS_EXTEND = (1 << 2),
 
   /* Condition code flag.  */
-  F_CLASS_COND = (1 << 3)
+  F_CLASS_COND = (1 << 3),
+
+  /* Write back mode.  */
+  F_CLASS_WB = (1 << 4),
+
+  /* Data size.  */
+  F_CLASS_ZZ = (1 << 5),
+
+  /* Implicit flag.  */
+  F_CLASS_IMPLICIT = (1 << 6)
 } flag_class_t;
 
 /* The opcode table is an array of struct arc_opcode.  */
 struct arc_opcode
 {
   /* The opcode name.  */
-  const char *name;
+  const char * name;
 
   /* The opcode itself.  Those bits which will be filled in with
      operands are zeroes.  */
@@ -348,7 +373,7 @@ extern const unsigned arc_NToperand;
 struct arc_flag_operand
 {
   /* The flag name.  */
-  const char *name;
+  const char * name;
 
   /* The flag code.  */
   unsigned code;
@@ -430,13 +455,13 @@ struct arc_operand_operation
 struct arc_pseudo_insn
 {
   /* Mnemonic for pseudo/alias insn.  */
-  const char *mnemonic_p;
+  const char * mnemonic_p;
 
   /* Mnemonic for real instruction.  */
-  const char *mnemonic_r;
+  const char * mnemonic_r;
 
   /* Flag that will have to be added (if any).  */
-  const char *flag_r;
+  const char * flag_r;
 
   /* Amount of operands.  */
   unsigned operand_cnt;
@@ -463,7 +488,7 @@ struct arc_aux_reg
   insn_subclass_t subclass;
 
   /* Register name.  */
-  const char *name;
+  const char * name;
 
   /* Size of the string.  */
   size_t length;

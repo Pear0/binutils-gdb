@@ -1,5 +1,5 @@
 /* BFD back-end for Motorola MCore COFF/PE
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -480,7 +480,7 @@ coff_mcore_relocate_section (bfd * output_bfd,
 	    /* xgettext: c-format */
 	    (_("Warning: unsupported reloc %s <file %B, section %A>\n"
 	       "sym %ld (%s), r_vaddr %ld (%lx)"),
-	     input_bfd, input_section, howto->name,
+	     howto->name, input_bfd, input_section,
 	     rel->r_symndx, my_name, (long) rel->r_vaddr,
 	     (unsigned long) rel->r_vaddr);
 	  break;

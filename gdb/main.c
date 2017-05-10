@@ -1,6 +1,6 @@
 /* Top level stuff for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -545,7 +545,9 @@ captured_main_1 (struct captured_main_args *context)
 #endif
 
   /* Prefix warning messages with the command name.  */
-  warning_pre_print = xstrprintf ("%s: warning: ", gdb_program_name);
+  gdb::unique_xmalloc_ptr<char> tmp_warn_preprint
+    (xstrprintf ("%s: warning: ", gdb_program_name));
+  warning_pre_print = tmp_warn_preprint.get ();
 
   if (! getcwd (gdb_dirbuf, sizeof (gdb_dirbuf)))
     perror_warning_with_name (_("error finding working directory"));
@@ -763,7 +765,7 @@ captured_main_1 (struct captured_main_args *context)
 	    break;
 	  case 'B':
 	    batch_flag = batch_silent = 1;
-	    gdb_stdout = ui_file_new();
+	    gdb_stdout = new null_file ();
 	    break;
 	  case 'D':
 	    if (optarg[0] == '\0')
@@ -972,7 +974,7 @@ captured_main_1 (struct captured_main_args *context)
     }
 
   /* Set off error and warning messages with a blank line.  */
-  xfree (warning_pre_print);
+  tmp_warn_preprint.reset ();
   warning_pre_print = _("\nwarning: ");
 
   /* Read and execute the system-wide gdbinit file, if it exists.

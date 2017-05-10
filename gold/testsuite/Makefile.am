@@ -274,6 +274,20 @@ icf_safe_test_1.stdout: icf_safe_test
 icf_safe_test_2.stdout: icf_safe_test
 	$(TEST_READELF) -h $< > $@
 
+check_SCRIPTS += icf_safe_pie_test.sh
+check_DATA += icf_safe_pie_test_1.stdout icf_safe_pie_test_2.stdout icf_safe_pie_test.map
+MOSTLYCLEANFILES += icf_safe_pie_test icf_safe_pie_test.map
+icf_safe_pie_test.o: icf_safe_test.cc
+	$(CXXCOMPILE) -O0 -c -ffunction-sections -fPIE -g -o $@ $<
+icf_safe_pie_test: icf_safe_pie_test.o gcctestdir/ld
+	$(CXXLINK) -o icf_safe_pie_test -Bgcctestdir/ -Wl,--icf=safe,-Map,icf_safe_pie_test.map icf_safe_pie_test.o -pie
+icf_safe_pie_test.map: icf_safe_pie_test
+	@touch icf_safe_pie_test.map
+icf_safe_pie_test_1.stdout: icf_safe_pie_test
+	$(TEST_NM) $< > $@
+icf_safe_pie_test_2.stdout: icf_safe_pie_test
+	$(TEST_READELF) -h $< > $@
+
 check_SCRIPTS += icf_safe_so_test.sh
 check_DATA += icf_safe_so_test_1.stdout icf_safe_so_test_2.stdout icf_safe_so_test.map
 MOSTLYCLEANFILES += icf_safe_so_test icf_safe_so_test.map
@@ -857,6 +871,16 @@ copy_test_2_pic.o: copy_test_2.cc
 	$(CXXCOMPILE) -c -fpic -o $@ $<
 copy_test_2.so: gcctestdir/ld copy_test_2_pic.o
 	$(CXXLINK) -Bgcctestdir/ -shared copy_test_2_pic.o
+
+check_PROGRAMS += copy_test_relro
+copy_test_relro_SOURCES = copy_test_relro.cc
+copy_test_relro_DEPENDENCIES = gcctestdir/ld copy_test_relro_1.so
+copy_test_relro_LDFLAGS = -Bgcctestdir/ -Wl,-R,. -Wl,-z,relro
+copy_test_relro_LDADD = copy_test_relro_1.so
+copy_test_relro_1_pic.o: copy_test_relro_1.cc
+	$(CXXCOMPILE) -c -fpic -o $@ $<
+copy_test_relro_1.so: gcctestdir/ld copy_test_relro_1_pic.o
+	$(CXXLINK) -Bgcctestdir/ -shared -Wl,-z,relro copy_test_relro_1_pic.o
 
 if !DEFAULT_TARGET_POWERPC
 check_SCRIPTS += copy_test_protected.sh

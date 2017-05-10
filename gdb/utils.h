@@ -1,7 +1,7 @@
 /* *INDENT-OFF* */ /* ATTRIBUTE_PRINTF confuses indent, avoid running it
 		      for now.  */
 /* I/O, string, cleanup, and other random utilities for GDB.
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -37,7 +37,7 @@ extern int strcmp_iw_ordered (const char *, const char *);
 
 extern int streq (const char *, const char *);
 
-extern int subset_compare (char *, char *);
+extern int subset_compare (const char *, const char *);
 
 int compare_positive_ints (const void *ap, const void *bp);
 int compare_strings (const void *ap, const void *bp);
@@ -66,9 +66,6 @@ char **gdb_buildargv (const char *);
 
 extern struct cleanup *make_cleanup_freeargv (char **);
 
-struct ui_file;
-extern struct cleanup *make_cleanup_ui_file_delete (struct ui_file *);
-
 struct ui_out;
 extern struct cleanup *
   make_cleanup_ui_out_redirect_pop (struct ui_out *uiout);
@@ -80,8 +77,6 @@ extern struct cleanup *(make_cleanup_free_section_addr_info
 /* For make_cleanup_close see common/filestuff.h.  */
 
 extern struct cleanup *make_cleanup_fclose (FILE *file);
-
-extern struct cleanup *make_cleanup_bfd_unref (bfd *abfd);
 
 struct obstack;
 extern struct cleanup *make_cleanup_obstack_free (struct obstack *obstack);
@@ -100,7 +95,17 @@ extern struct cleanup *make_cleanup_free_so (struct so_list *so);
 
 extern struct cleanup *make_cleanup_restore_current_language (void);
 
-extern struct cleanup *make_cleanup_htab_delete (htab_t htab);
+/* A deleter for a hash table.  */
+struct htab_deleter
+{
+  void operator() (htab *ptr) const
+  {
+    htab_delete (ptr);
+  }
+};
+
+/* A unique_ptr wrapper for htab_t.  */
+typedef std::unique_ptr<htab, htab_deleter> htab_up;
 
 struct parser_state;
 extern struct cleanup *make_cleanup_clear_parser_state
@@ -130,7 +135,7 @@ extern int gdb_filename_fnmatch (const char *pattern, const char *string,
 extern void substitute_path_component (char **stringp, const char *from,
 				       const char *to);
 
-char *ldirname (const char *filename);
+std::string ldirname (const char *filename);
 
 extern int count_path_elements (const char *path);
 
@@ -293,9 +298,9 @@ extern void (*deprecated_error_begin_hook) (void);
 
 /* Message to be printed before the warning message, when a warning occurs.  */
 
-extern char *warning_pre_print;
+extern const char *warning_pre_print;
 
-extern void error_stream (struct ui_file *) ATTRIBUTE_NORETURN;
+extern void error_stream (const string_file &) ATTRIBUTE_NORETURN;
 
 extern void demangler_vwarning (const char *file, int line,
 			       const char *, va_list ap)

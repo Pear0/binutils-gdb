@@ -1,5 +1,5 @@
 /* IA-64 support for 64-bit ELF
-   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+   Copyright (C) 1998-2017 Free Software Foundation, Inc.
    Contributed by David Mosberger-Tang <davidm@hpl.hp.com>
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -617,8 +617,9 @@ elfNN_ia64_relax_section (bfd *abfd, asection *sec,
 	    {
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%B: Can't relax br at 0x%lx in section `%A'. Please use brl or indirect branch."),
-		 sec->owner, sec, (unsigned long) roff);
+		(_("%B: Can't relax br at 0x%lx in section `%A'."
+		   " Please use brl or indirect branch."),
+		 sec->owner, (unsigned long) roff, sec);
 	      bfd_set_error (bfd_error_bad_value);
 	      goto error_return;
 	    }
@@ -1274,7 +1275,8 @@ elfNN_ia64_hash_copy_indirect (struct bfd_link_info *info,
   /* Copy down any references that we may have already seen to the
      symbol which just became indirect.  */
 
-  dir->root.ref_dynamic |= ind->root.ref_dynamic;
+  if (dir->root.versioned != versioned_hidden)
+    dir->root.ref_dynamic |= ind->root.ref_dynamic;
   dir->root.ref_regular |= ind->root.ref_regular;
   dir->root.ref_regular_nonweak |= ind->root.ref_regular_nonweak;
   dir->root.needs_plt |= ind->root.needs_plt;
@@ -3683,9 +3685,8 @@ elfNN_ia64_choose_gp (bfd *abfd, struct bfd_link_info *info, bfd_boolean final)
 overflow:
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%s: short data segment overflowed (0x%lx >= 0x400000)"),
-	     bfd_get_filename (abfd),
-	     (unsigned long) (max_short_vma - min_short_vma));
+	    (_("%B: short data segment overflowed (0x%lx >= 0x400000)"),
+	     abfd, (unsigned long) (max_short_vma - min_short_vma));
 	  return FALSE;
 	}
       else if ((gp_val > min_short_vma
@@ -3694,8 +3695,7 @@ overflow:
 		   && max_short_vma - gp_val >= 0x200000))
 	{
 	  _bfd_error_handler
-	    (_("%s: __gp does not cover short data segment"),
-	     bfd_get_filename (abfd));
+	    (_("%B: __gp does not cover short data segment"), abfd);
 	  return FALSE;
 	}
     }
@@ -3836,8 +3836,7 @@ elfNN_ia64_relocate_section (bfd *output_bfd,
 	{
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%B: unknown relocation type %d"),
-	     input_bfd, (int) r_type);
+	    (_("%B: unknown relocation type %d"), input_bfd, (int) r_type);
 	  bfd_set_error (bfd_error_bad_value);
 	  ret_val = FALSE;
 	  continue;
@@ -4473,9 +4472,10 @@ missing_tls_sec:
 	      case R_IA64_LTOFF_DTPREL22:
 		_bfd_error_handler
 		  /* xgettext:c-format */
-		  (_("%B: missing TLS section for relocation %s against `%s' at 0x%lx in section `%A'."),
-		   input_bfd, input_section, howto->name, name,
-		   rel->r_offset);
+		  (_("%B: missing TLS section for relocation %s against `%s'"
+		     " at 0x%lx in section `%A'."),
+		   input_bfd, howto->name, name,
+		   rel->r_offset, input_section);
 		break;
 
 	      case R_IA64_PCREL21B:
@@ -4489,9 +4489,10 @@ missing_tls_sec:
 		       that the section is too big to relax.  */
 		    _bfd_error_handler
 		      /* xgettext:c-format */
-		      (_("%B: Can't relax br (%s) to `%s' at 0x%lx in section `%A' with size 0x%lx (> 0x1000000)."),
-		       input_bfd, input_section, howto->name, name,
-		       rel->r_offset, input_section->size);
+		      (_("%B: Can't relax br (%s) to `%s' at 0x%lx"
+			 " in section `%A' with size 0x%lx (> 0x1000000)."),
+		       input_bfd, howto->name, name, rel->r_offset,
+		       input_section, input_section->size);
 		    break;
 		  }
 		/* Fall through.  */

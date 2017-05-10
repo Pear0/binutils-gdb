@@ -1,6 +1,6 @@
 /* Print and select stack frames for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -224,12 +224,9 @@ static void
 print_frame_arg (const struct frame_arg *arg)
 {
   struct ui_out *uiout = current_uiout;
-  struct cleanup *old_chain;
-  struct ui_file *stb;
   const char *error_message = NULL;
 
-  stb = mem_fileopen ();
-  old_chain = make_cleanup_ui_file_delete (stb);
+  string_file stb;
 
   gdb_assert (!arg->val || !arg->error);
   gdb_assert (arg->entry_kind == print_entry_values_no
@@ -237,24 +234,23 @@ print_frame_arg (const struct frame_arg *arg)
 	      || (!uiout->is_mi_like_p ()
 		  && arg->entry_kind == print_entry_values_compact));
 
-  annotate_arg_begin ();
-
-  make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
-  fprintf_symbol_filtered (stb, SYMBOL_PRINT_NAME (arg->sym),
+  annotate_arg_emitter arg_emitter;
+  ui_out_emit_tuple tuple_emitter (uiout, NULL);
+  fprintf_symbol_filtered (&stb, SYMBOL_PRINT_NAME (arg->sym),
 			   SYMBOL_LANGUAGE (arg->sym), DMGL_PARAMS | DMGL_ANSI);
   if (arg->entry_kind == print_entry_values_compact)
     {
       /* It is OK to provide invalid MI-like stream as with
 	 PRINT_ENTRY_VALUE_COMPACT we never use MI.  */
-      fputs_filtered ("=", stb);
+      stb.puts ("=");
 
-      fprintf_symbol_filtered (stb, SYMBOL_PRINT_NAME (arg->sym),
+      fprintf_symbol_filtered (&stb, SYMBOL_PRINT_NAME (arg->sym),
 			       SYMBOL_LANGUAGE (arg->sym),
 			       DMGL_PARAMS | DMGL_ANSI);
     }
   if (arg->entry_kind == print_entry_values_only
       || arg->entry_kind == print_entry_values_compact)
-    fputs_filtered ("@entry", stb);
+    stb.puts ("@entry");
   uiout->field_stream ("name", stb);
   annotate_arg_name_end ();
   uiout->text ("=");
@@ -294,7 +290,7 @@ print_frame_arg (const struct frame_arg *arg)
 	      /* True in "summary" mode, false otherwise.  */
 	      opts.summary = !strcmp (print_frame_arguments, "scalars");
 
-	      common_val_print (arg->val, stb, 2, &opts, language);
+	      common_val_print (arg->val, &stb, 2, &opts, language);
 	    }
 	  CATCH (except, RETURN_MASK_ERROR)
 	    {
@@ -303,16 +299,10 @@ print_frame_arg (const struct frame_arg *arg)
 	  END_CATCH
 	}
       if (error_message != NULL)
-	fprintf_filtered (stb, _("<error reading variable: %s>"),
-			  error_message);
+	stb.printf (_("<error reading variable: %s>"), error_message);
     }
 
   uiout->field_stream ("value", stb);
-
-  /* Also invoke ui_out_tuple_end.  */
-  do_cleanups (old_chain);
-
-  annotate_arg_end ();
 }
 
 /* Read in inferior function local SYM at FRAME into ARGP.  Caller is
@@ -410,10 +400,9 @@ read_frame_arg (struct symbol *sym, struct frame_info *frame,
 		  /* Initialize it just to avoid a GCC false warning.  */
 		  struct value *val_deref = NULL, *entryval_deref;
 
-		  /* DW_AT_GNU_call_site_value does match with the current
+		  /* DW_AT_call_value does match with the current
 		     value.  If it is a reference still try to verify if
-		     dereferenced DW_AT_GNU_call_site_data_value does not
-		     differ.  */
+		     dereferenced DW_AT_call_data_value does not differ.  */
 
 		  TRY
 		    {
@@ -553,13 +542,8 @@ print_frame_args (struct symbol *func, struct frame_info *frame,
   long highest_offset = -1;
   /* Number of ints of arguments that we have printed so far.  */
   int args_printed = 0;
-  struct cleanup *old_chain;
-  struct ui_file *stb;
   /* True if we should print arguments, false otherwise.  */
   int print_args = strcmp (print_frame_arguments, "none");
-
-  stb = mem_fileopen ();
-  old_chain = make_cleanup_ui_file_delete (stb);
 
   if (func)
     {
@@ -730,8 +714,6 @@ print_frame_args (struct symbol *func, struct frame_info *frame,
       print_frame_nameless_args (frame, start, num - args_printed,
 				 first, stream);
     }
-
-  do_cleanups (old_chain);
 }
 
 /* Set the current source and line to the location given by frame
@@ -777,7 +759,7 @@ do_gdb_disassembly (struct gdbarch *gdbarch,
 
   TRY
     {
-      gdb_disassembly (gdbarch, current_uiout, 0,
+      gdb_disassembly (gdbarch, current_uiout,
 		       DISASSEMBLY_RAW_INSN, how_many,
 		       low, high);
     }
@@ -816,8 +798,7 @@ print_frame_info (struct frame_info *frame, int print_level,
       || get_frame_type (frame) == SIGTRAMP_FRAME
       || get_frame_type (frame) == ARCH_FRAME)
     {
-      struct cleanup *uiout_cleanup
-	= make_cleanup_ui_out_tuple_begin_end (uiout, "frame");
+      ui_out_emit_tuple tuple_emitter (uiout, "frame");
 
       annotate_frame_begin (print_level ? frame_relative_level (frame) : 0,
 			    gdbarch, get_frame_pc (frame));
@@ -862,7 +843,6 @@ print_frame_info (struct frame_info *frame, int print_level,
 	do_gdb_disassembly (get_frame_arch (frame), 1,
 			    get_frame_pc (frame), get_frame_pc (frame) + 1);
 
-      do_cleanups (uiout_cleanup);
       return;
     }
 
@@ -1165,7 +1145,6 @@ print_frame (struct frame_info *frame, int print_level,
   struct ui_out *uiout = current_uiout;
   char *funname = NULL;
   enum language funlang = language_unknown;
-  struct ui_file *stb;
   struct cleanup *old_chain, *list_chain;
   struct value_print_options opts;
   struct symbol *func;
@@ -1174,11 +1153,9 @@ print_frame (struct frame_info *frame, int print_level,
 
   pc_p = get_frame_pc_if_available (frame, &pc);
 
-  stb = mem_fileopen ();
-  old_chain = make_cleanup_ui_file_delete (stb);
 
   find_frame_funname (frame, &funname, &funlang, &func);
-  make_cleanup (xfree, funname);
+  old_chain = make_cleanup (xfree, funname);
 
   annotate_frame_begin (print_level ? frame_relative_level (frame) : 0,
 			gdbarch, pc);
@@ -1206,7 +1183,9 @@ print_frame (struct frame_info *frame, int print_level,
 	uiout->text (" in ");
       }
   annotate_frame_function_name ();
-  fprintf_symbol_filtered (stb, funname ? funname : "??",
+
+  string_file stb;
+  fprintf_symbol_filtered (&stb, funname ? funname : "??",
 			   funlang, DMGL_ANSI);
   uiout->field_stream ("func", stb);
   uiout->wrap_hint ("   ");
@@ -1217,7 +1196,6 @@ print_frame (struct frame_info *frame, int print_level,
     {
       struct gdbarch *gdbarch = get_frame_arch (frame);
       int numargs;
-      struct cleanup *args_list_chain;
 
       if (gdbarch_frame_num_args_p (gdbarch))
 	{
@@ -1227,20 +1205,20 @@ print_frame (struct frame_info *frame, int print_level,
       else
 	numargs = -1;
     
-      args_list_chain = make_cleanup_ui_out_list_begin_end (uiout, "args");
-      TRY
-	{
-	  print_frame_args (func, frame, numargs, gdb_stdout);
-	}
-      CATCH (e, RETURN_MASK_ERROR)
-	{
-	}
-      END_CATCH
+      {
+	ui_out_emit_list list_emitter (uiout, "args");
+	TRY
+	  {
+	    print_frame_args (func, frame, numargs, gdb_stdout);
+	  }
+	CATCH (e, RETURN_MASK_ERROR)
+	  {
+	  }
+	END_CATCH
 
-      /* FIXME: ARGS must be a list.  If one argument is a string it
-	  will have " that will not be properly escaped.  */
-      /* Invoke ui_out_tuple_end.  */
-      do_cleanups (args_list_chain);
+	/* FIXME: ARGS must be a list.  If one argument is a string it
+	   will have " that will not be properly escaped.  */
+      }
       QUIT;
     }
   uiout->text (")");
@@ -1642,57 +1620,52 @@ frame_info (char *addr_exp, int from_tty)
   /* Print as much information as possible on the location of all the
      registers.  */
   {
-    enum lval_type lval;
-    int optimized;
-    int unavailable;
-    CORE_ADDR addr;
-    int realnum;
     int count;
     int i;
     int need_nl = 1;
+    int sp_regnum = gdbarch_sp_regnum (gdbarch);
 
     /* The sp is special; what's displayed isn't the save address, but
        the value of the previous frame's sp.  This is a legacy thing,
        at one stage the frame cached the previous frame's SP instead
        of its address, hence it was easiest to just display the cached
        value.  */
-    if (gdbarch_sp_regnum (gdbarch) >= 0)
+    if (sp_regnum >= 0)
       {
-	/* Find out the location of the saved stack pointer with out
-           actually evaluating it.  */
-	frame_register_unwind (fi, gdbarch_sp_regnum (gdbarch),
-			       &optimized, &unavailable, &lval, &addr,
-			       &realnum, NULL);
-	if (!optimized && !unavailable && lval == not_lval)
-	  {
-	    enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
-	    int sp_size = register_size (gdbarch, gdbarch_sp_regnum (gdbarch));
-	    gdb_byte value[MAX_REGISTER_SIZE];
-	    CORE_ADDR sp;
+	struct value *value = frame_unwind_register_value (fi, sp_regnum);
+	gdb_assert (value != NULL);
 
-	    frame_register_unwind (fi, gdbarch_sp_regnum (gdbarch),
-				   &optimized, &unavailable, &lval, &addr,
-				   &realnum, value);
-	    /* NOTE: cagney/2003-05-22: This is assuming that the
-               stack pointer was packed as an unsigned integer.  That
-               may or may not be valid.  */
-	    sp = extract_unsigned_integer (value, sp_size, byte_order);
-	    printf_filtered (" Previous frame's sp is ");
-	    fputs_filtered (paddress (gdbarch, sp), gdb_stdout);
-	    printf_filtered ("\n");
-	    need_nl = 0;
-	  }
-	else if (!optimized && !unavailable && lval == lval_memory)
+	if (!value_optimized_out (value) && value_entirely_available (value))
 	  {
-	    printf_filtered (" Previous frame's sp at ");
-	    fputs_filtered (paddress (gdbarch, addr), gdb_stdout);
-	    printf_filtered ("\n");
-	    need_nl = 0;
-	  }
-	else if (!optimized && !unavailable && lval == lval_register)
-	  {
-	    printf_filtered (" Previous frame's sp in %s\n",
-			     gdbarch_register_name (gdbarch, realnum));
+	    if (VALUE_LVAL (value) == not_lval)
+	      {
+		CORE_ADDR sp;
+		enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+		int sp_size = register_size (gdbarch, sp_regnum);
+
+		sp = extract_unsigned_integer (value_contents_all (value),
+					       sp_size, byte_order);
+
+		printf_filtered (" Previous frame's sp is ");
+		fputs_filtered (paddress (gdbarch, sp), gdb_stdout);
+		printf_filtered ("\n");
+	      }
+	    else if (VALUE_LVAL (value) == lval_memory)
+	      {
+		printf_filtered (" Previous frame's sp at ");
+		fputs_filtered (paddress (gdbarch, value_address (value)),
+				gdb_stdout);
+		printf_filtered ("\n");
+	      }
+	    else if (VALUE_LVAL (value) == lval_register)
+	      {
+		printf_filtered (" Previous frame's sp in %s\n",
+				 gdbarch_register_name (gdbarch,
+							VALUE_REGNUM (value)));
+	      }
+
+	    release_value (value);
+	    value_free (value);
 	    need_nl = 0;
 	  }
 	/* else keep quiet.  */
@@ -1702,9 +1675,15 @@ frame_info (char *addr_exp, int from_tty)
     numregs = gdbarch_num_regs (gdbarch)
 	      + gdbarch_num_pseudo_regs (gdbarch);
     for (i = 0; i < numregs; i++)
-      if (i != gdbarch_sp_regnum (gdbarch)
+      if (i != sp_regnum
 	  && gdbarch_register_reggroup_p (gdbarch, i, all_reggroup))
 	{
+	  enum lval_type lval;
+	  int optimized;
+	  int unavailable;
+	  CORE_ADDR addr;
+	  int realnum;
+
 	  /* Find out the location of the saved register without
              fetching the corresponding value.  */
 	  frame_register_unwind (fi, i, &optimized, &unavailable,
@@ -2629,9 +2608,7 @@ This is useful in command scripts."));
 Select and print a stack frame.\nWith no argument, \
 print the selected stack frame.  (See also \"info frame\").\n\
 An argument specifies the frame to select.\n\
-It can be a stack frame number or the address of the frame.\n\
-With argument, nothing is printed if input is coming from\n\
-a command file or a user-defined command."));
+It can be a stack frame number or the address of the frame.\n"));
 
   add_com_alias ("f", "frame", class_stack, 1);
 

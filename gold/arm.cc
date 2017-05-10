@@ -1,6 +1,6 @@
 // arm.cc -- arm target support for gold.
 
-// Copyright (C) 2009-2016 Free Software Foundation, Inc.
+// Copyright (C) 2009-2017 Free Software Foundation, Inc.
 // Written by Doug Kwan <dougkwan@google.com> based on the i386 code
 // by Ian Lance Taylor <iant@google.com>.
 // This file also contains borrowed and adapted code from
@@ -6587,9 +6587,9 @@ Arm_relobj<big_endian>::do_relocate_sections(
     Output_file* of,
     typename Sized_relobj_file<32, big_endian>::Views* pviews)
 {
-  // Call parent to relocate sections.
-  Sized_relobj_file<32, big_endian>::do_relocate_sections(symtab, layout,
-							  pshdrs, of, pviews);
+  // Relocate the section data.
+  this->relocate_section_range(symtab, layout, pshdrs, of, pviews,
+			       1, this->shnum() - 1);
 
   // We do not generate stubs if doing a relocatable link.
   if (parameters->options().relocatable())

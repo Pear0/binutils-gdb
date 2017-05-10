@@ -1,5 +1,5 @@
 /* YACC parser for C expressions, for GDB.
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -70,7 +70,7 @@ int yyparse (void);
 
 static int yylex (void);
 
-void yyerror (char *);
+void yyerror (const char *);
 
 static int type_aggregate_p (struct type *);
 
@@ -744,7 +744,7 @@ exp	:	SIZEOF '(' type ')'	%prec UNARY
 			       says of sizeof:  "When applied to a reference
 			       or a reference type, the result is the size of
 			       the referenced type."  */
-			  if (TYPE_CODE (type) == TYPE_CODE_REF)
+			  if (TYPE_IS_REFERENCE (type))
 			    type = check_typedef (TYPE_TARGET_TYPE (type));
 			  write_exp_elt_longcst (pstate,
 						 (LONGEST) TYPE_LENGTH (type));
@@ -1085,6 +1085,10 @@ ptr_operator:
 			{ insert_type (tp_reference); }
 	|	'&' ptr_operator
 			{ insert_type (tp_reference); }
+	|       ANDAND
+			{ insert_type (tp_rvalue_reference); }
+	|       ANDAND ptr_operator
+			{ insert_type (tp_rvalue_reference); }
 	;
 
 ptr_operator_ts: ptr_operator
@@ -1555,13 +1559,11 @@ oper:	OPERATOR NEW
 	|	OPERATOR OBJC_LBRAC ']'
 			{ $$ = operator_stoken ("[]"); }
 	|	OPERATOR conversion_type_id
-			{ struct ui_file *buf = mem_fileopen ();
+			{ string_file buf;
 
-			  c_print_type ($2, NULL, buf, -1, 0,
+			  c_print_type ($2, NULL, &buf, -1, 0,
 					&type_print_raw_options);
-			  std::string name = ui_file_as_string (buf);
-			  ui_file_delete (buf);
-			  $$ = operator_stoken (name.c_str ());
+			  $$ = operator_stoken (buf.c_str ());
 			}
 	;
 
@@ -2215,7 +2217,7 @@ DEF_ENUM_FLAGS_TYPE (enum token_flag, token_flags);
 
 struct token
 {
-  char *oper;
+  const char *oper;
   int token;
   enum exp_opcode opcode;
   token_flags flags;
@@ -3186,8 +3188,8 @@ c_parse (struct parser_state *par_state)
   gdb_assert (! macro_original_text);
   make_cleanup (scan_macro_cleanup, 0);
 
-  make_cleanup_restore_integer (&yydebug);
-  yydebug = parser_debug;
+  scoped_restore restore_yydebug = make_scoped_restore (&yydebug,
+							parser_debug);
 
   /* Initialize some state used by the lexer.  */
   last_was_structop = 0;
@@ -3263,7 +3265,7 @@ c_print_token (FILE *file, int type, YYSTYPE value)
 #endif
 
 void
-yyerror (char *msg)
+yyerror (const char *msg)
 {
   if (prev_lexptr)
     lexptr = prev_lexptr;

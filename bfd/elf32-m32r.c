@@ -1,5 +1,5 @@
 /* M32R-specific support for 32-bit ELF.
-   Copyright (C) 1996-2016 Free Software Foundation, Inc.
+   Copyright (C) 1996-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -2983,9 +2983,9 @@ m32r_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 		      /* xgettext:c-format */
 		      (_("%B: The target (%s) of an %s relocation is in the wrong section (%A)"),
 		       input_bfd,
-		       sec,
 		       sym_name,
-		       m32r_elf_howto_table[(int) r_type].name);
+		       m32r_elf_howto_table[(int) r_type].name,
+		       sec);
 		    /*bfd_set_error (bfd_error_bad_value); ??? why? */
 		    ret = FALSE;
 		    continue;

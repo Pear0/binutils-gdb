@@ -1,5 +1,5 @@
 /* bfdlink.h -- header file for BFD link routines
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
    Written by Steve Chamberlain and Ian Lance Taylor, Cygnus Support.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -103,6 +103,10 @@ struct bfd_link_hash_entry
   /* Symbol is referenced in a normal object file, as distict from a LTO
      IR object file.  */
   unsigned int non_ir_ref : 1;
+
+  /* Symbol is referenced in a dynamic object after it has been defined
+     in an IR object.  */
+  unsigned int dynamic_ref_after_ir_def : 1;
 
   /* Symbol is a built-in define.  These will be overridden by PROVIDE
      in a linker script.  */
@@ -584,8 +588,9 @@ struct bfd_link_info
      backend to decide.  */
   int extern_protected_data;
 
-  /* > 0 to treat undefined weak symbol in the executable as dynamic,
-     requiring dynamic relocation.  */
+  /* 1 to make undefined weak symbols dynamic when building a dynamic
+     object.  0 to resolve undefined weak symbols to zero.  -1 to let
+     the backend decide.  */
   int dynamic_undefined_weak;
 
   /* Non-zero if auto-import thunks for DATA items in pei386 DLLs

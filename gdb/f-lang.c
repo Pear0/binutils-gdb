@@ -1,6 +1,6 @@
 /* Fortran language support routines for GDB, the GNU debugger.
 
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    Contributed by Motorola.  Adapted from the C parser by Farooq Butt
    (fmbutt@engage.sps.mot.com).
@@ -203,7 +203,7 @@ f_language_arch_info (struct gdbarch *gdbarch,
 
 /* Remove the modules separator :: from the default break list.  */
 
-static char *
+static const char *
 f_word_break_characters (void)
 {
   static char *retval;

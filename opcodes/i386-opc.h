@@ -1,5 +1,5 @@
 /* Declarations for Intel 80386 opcode table
-   Copyright (C) 2007-2016 Free Software Foundation, Inc.
+   Copyright (C) 2007-2017 Free Software Foundation, Inc.
 
    This file is part of the GNU opcodes library.
 
@@ -196,6 +196,8 @@ enum
   CpuAVX512_4FMAPS,
   /* Intel AVX-512 4VNNIW Instructions support required.  */
   CpuAVX512_4VNNIW,
+  /* Intel AVX-512 VPOPCNTDQ Instructions support required.  */
+  CpuAVX512_VPOPCNTDQ,
   /* mwaitx instruction required */
   CpuMWAITX,
   /* Clzero instruction required */
@@ -206,6 +208,8 @@ enum
   CpuRDPID,
   /* PTWRITE instruction required */
   CpuPTWRITE,
+  /* CET instruction support required */
+  CpuCET,
   /* MMX register support required */
   CpuRegMMX,
   /* XMM register support required */
@@ -231,7 +235,9 @@ enum
 
 /* If you get a compiler error for zero width of the unused field,
    comment it out.  */
+#if 0
 #define CpuUnused	(CpuMax + 1)
+#endif
 
 /* We can check if an instruction is available with array instead
    of bitfield. */
@@ -321,11 +327,13 @@ typedef union i386_cpu_flags
       unsigned int cpuavx512vbmi:1;
       unsigned int cpuavx512_4fmaps:1;
       unsigned int cpuavx512_4vnniw:1;
+      unsigned int cpuavx512_vpopcntdq:1;
       unsigned int cpumwaitx:1;
       unsigned int cpuclzero:1;
       unsigned int cpuospke:1;
       unsigned int cpurdpid:1;
       unsigned int cpuptwrite:1;
+      unsigned int cpucet:1;
       unsigned int cpuregmmx:1;
       unsigned int cpuregxmm:1;
       unsigned int cpuregymm:1;
@@ -348,9 +356,8 @@ enum
   D = 0,
   /* set if operands can be words or dwords encoded the canonical way */
   W,
-  /* Skip the current insn and use the next insn in i386-opc.tbl to swap
-     operand in encoding.  */
-  S,
+  /* load form instruction. Must be placed before store form.  */
+  Load,
   /* insn has a modrm byte. */
   Modrm,
   /* register is in low 3 bits of opcode */
@@ -590,7 +597,7 @@ typedef struct i386_opcode_modifier
 {
   unsigned int d:1;
   unsigned int w:1;
-  unsigned int s:1;
+  unsigned int load:1;
   unsigned int modrm:1;
   unsigned int shortform:1;
   unsigned int jump:1;

@@ -1,5 +1,5 @@
 /* linker.c -- BFD linker routines
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
    Written by Steve Chamberlain and Ian Lance Taylor, Cygnus Support
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -1405,8 +1405,7 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
       if (!bfd_link_relocatable (info)
 	  && strcmp (name, "__gnu_lto_slim") == 0)
 	_bfd_error_handler
-	  (_("%s: plugin needed to handle lto object"),
-	   bfd_get_filename (abfd));
+	  (_("%B: plugin needed to handle lto object"), abfd);
     }
   else
     row = DEF_ROW;

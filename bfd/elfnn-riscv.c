@@ -1,5 +1,5 @@
 /* RISC-V-specific support for NN-bit ELF.
-   Copyright 2011-2016 Free Software Foundation, Inc.
+   Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on TILE-Gx and MIPS targets.
@@ -123,8 +123,6 @@ struct riscv_elf_link_hash_table
   struct elf_link_hash_table elf;
 
   /* Short-cuts to get to dynamic linker sections.  */
-  asection *sdynbss;
-  asection *srelbss;
   asection *sdyntdata;
 
   /* Small local sym to section mapping cache.  */
@@ -363,17 +361,15 @@ riscv_elf_create_dynamic_sections (bfd *dynobj,
   if (!_bfd_elf_create_dynamic_sections (dynobj, info))
     return FALSE;
 
-  htab->sdynbss = bfd_get_linker_section (dynobj, ".dynbss");
   if (!bfd_link_pic (info))
     {
-      htab->srelbss = bfd_get_linker_section (dynobj, ".rela.bss");
       htab->sdyntdata =
 	bfd_make_section_anyway_with_flags (dynobj, ".tdata.dyn",
 					    SEC_ALLOC | SEC_THREAD_LOCAL);
     }
 
-  if (!htab->elf.splt || !htab->elf.srelplt || !htab->sdynbss
-      || (!bfd_link_pic (info) && (!htab->srelbss || !htab->sdyntdata)))
+  if (!htab->elf.splt || !htab->elf.srelplt || !htab->elf.sdynbss
+      || (!bfd_link_pic (info) && (!htab->elf.srelbss || !htab->sdyntdata)))
     abort ();
 
   return TRUE;
@@ -866,7 +862,7 @@ riscv_elf_adjust_dynamic_symbol (struct bfd_link_info *info,
   struct riscv_elf_link_hash_entry * eh;
   struct riscv_elf_dyn_relocs *p;
   bfd *dynobj;
-  asection *s;
+  asection *s, *srel;
 
   htab = riscv_elf_hash_table (info);
   BFD_ASSERT (htab != NULL);
@@ -969,16 +965,26 @@ riscv_elf_adjust_dynamic_symbol (struct bfd_link_info *info,
      to copy the initial value out of the dynamic object and into the
      runtime process image.  We need to remember the offset into the
      .rel.bss section we are going to use.  */
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->elf.sdynrelro;
+      srel = htab->elf.sreldynrelro;
+    }
+  else
+    {
+      s = htab->elf.sdynbss;
+      srel = htab->elf.srelbss;
+    }
   if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
-      htab->srelbss->size += sizeof (ElfNN_External_Rela);
+      srel->size += sizeof (ElfNN_External_Rela);
       h->needs_copy = 1;
     }
 
   if (eh->tls_type & ~GOT_NORMAL)
     return _bfd_elf_adjust_dynamic_copy (info, h, htab->sdyntdata);
 
-  return _bfd_elf_adjust_dynamic_copy (info, h, htab->sdynbss);
+  return _bfd_elf_adjust_dynamic_copy (info, h, s);
 }
 
 /* Allocate space in .plt, .got and associated reloc sections for
@@ -1332,7 +1338,8 @@ riscv_elf_size_dynamic_sections (bfd *output_bfd, struct bfd_link_info *info)
       if (s == htab->elf.splt
 	  || s == htab->elf.sgot
 	  || s == htab->elf.sgotplt
-	  || s == htab->sdynbss)
+	  || s == htab->elf.sdynbss
+	  || s == htab->elf.sdynrelro)
 	{
 	  /* Strip this section if we don't need it; see the
 	     comment below.  */
@@ -1456,7 +1463,7 @@ riscv_global_pointer_value (struct bfd_link_info *info)
 {
   struct bfd_link_hash_entry *h;
 
-  h = bfd_link_hash_lookup (info->hash, "_gp", FALSE, FALSE, TRUE);
+  h = bfd_link_hash_lookup (info->hash, RISCV_GP_SYMBOL, FALSE, FALSE, TRUE);
   if (h == NULL || h->type != bfd_link_hash_defined)
     return 0;
 
@@ -2393,6 +2400,7 @@ riscv_elf_finish_dynamic_symbol (bfd *output_bfd,
   if (h->needs_copy)
     {
       Elf_Internal_Rela rela;
+      asection *s;
 
       /* This symbols needs a copy reloc.  Set it up.  */
       BFD_ASSERT (h->dynindx != -1);
@@ -2400,7 +2408,11 @@ riscv_elf_finish_dynamic_symbol (bfd *output_bfd,
       rela.r_offset = sec_addr (h->root.u.def.section) + h->root.u.def.value;
       rela.r_info = ELFNN_R_INFO (h->dynindx, R_RISCV_COPY);
       rela.r_addend = 0;
-      riscv_elf_append_rela (output_bfd, htab->srelbss, &rela);
+      if (h->root.u.def.section == htab->elf.sdynrelro)
+	s = htab->elf.sreldynrelro;
+      else
+	s = htab->elf.srelbss;
+      riscv_elf_append_rela (output_bfd, s, &rela);
     }
 
   /* Mark some specially defined symbols as absolute.  */
@@ -2490,10 +2502,10 @@ riscv_elf_finish_dynamic_sections (bfd *output_bfd,
 
 	  for (i = 0; i < PLT_HEADER_INSNS; i++)
 	    bfd_put_32 (output_bfd, plt_header[i], splt->contents + 4*i);
-	}
 
-      elf_section_data (splt->output_section)->this_hdr.sh_entsize
-	= PLT_ENTRY_SIZE;
+	  elf_section_data (splt->output_section)->this_hdr.sh_entsize
+	    = PLT_ENTRY_SIZE;
+	}
     }
 
   if (htab->elf.sgotplt)
@@ -2796,6 +2808,17 @@ _bfd_riscv_relax_lui (bfd *abfd,
     return TRUE;
 
   BFD_ASSERT (rel->r_offset + 4 <= sec->size);
+
+  if (gp)
+    {
+      /* If gp and the symbol are in the same output section, then
+	 consider only that section's alignment.  */
+      struct bfd_link_hash_entry *h =
+	bfd_link_hash_lookup (link_info->hash, RISCV_GP_SYMBOL, FALSE, FALSE,
+			      TRUE);
+      if (h->u.def.section->output_section == sym_sec->output_section)
+	max_alignment = (bfd_vma) 1 << sym_sec->output_section->alignment_power;
+    }
 
   /* Is the reference in range of x0 or gp?
      Valid gp range conservatively because of alignment issue.  */
@@ -3179,6 +3202,19 @@ riscv_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
   return TRUE;
 }
 
+/* Set the right mach type.  */
+static bfd_boolean
+riscv_elf_object_p (bfd *abfd)
+{
+  /* There are only two mach types in RISCV currently.  */
+  if (strcmp (abfd->xvec->name, "elf32-littleriscv") == 0)
+    bfd_default_set_arch_mach (abfd, bfd_arch_riscv, bfd_mach_riscv32);
+  else
+    bfd_default_set_arch_mach (abfd, bfd_arch_riscv, bfd_mach_riscv64);
+
+  return TRUE;
+}
+
 
 #define TARGET_LITTLE_SYM		riscv_elfNN_vec
 #define TARGET_LITTLE_NAME		"elfNN-littleriscv"
@@ -3204,6 +3240,7 @@ riscv_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 #define elf_backend_plt_sym_val		     riscv_elf_plt_sym_val
 #define elf_backend_grok_prstatus            riscv_elf_grok_prstatus
 #define elf_backend_grok_psinfo              riscv_elf_grok_psinfo
+#define elf_backend_object_p                 riscv_elf_object_p
 #define elf_info_to_howto_rel		     NULL
 #define elf_info_to_howto		     riscv_info_to_howto_rela
 #define bfd_elfNN_bfd_relax_section	     _bfd_riscv_relax_section
@@ -3217,6 +3254,7 @@ riscv_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 #define elf_backend_plt_alignment	4
 #define elf_backend_want_plt_sym	1
 #define elf_backend_got_header_size	(ARCH_SIZE / 8)
+#define elf_backend_want_dynrelro	1
 #define elf_backend_rela_normal		1
 #define elf_backend_default_execstack	0
 

@@ -1,5 +1,5 @@
 /* nm.c -- Describe symbol table of a rel file.
-   Copyright (C) 1991-2016 Free Software Foundation, Inc.
+   Copyright (C) 1991-2017 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -685,7 +685,8 @@ size_forward1 (const void *P_x, const void *P_y)
 
 #define file_symbol(s, sn, snl)			\
   (((s)->flags & BSF_FILE) != 0			\
-   || ((sn)[(snl) - 2] == '.'			\
+   || ((snl) > 2				\
+       && (sn)[(snl) - 2] == '.'		\
        && ((sn)[(snl) - 1] == 'o'		\
 	   || (sn)[(snl) - 1] == 'a')))
 

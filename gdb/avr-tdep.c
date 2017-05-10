@@ -1,6 +1,6 @@
 /* Target-dependent code for Atmel AVR, for GDB.
 
-   Copyright (C) 1996-2016 Free Software Foundation, Inc.
+   Copyright (C) 1996-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -1471,6 +1471,9 @@ avr_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_long_long_bit (gdbarch, 8 * TARGET_CHAR_BIT);
   set_gdbarch_ptr_bit (gdbarch, 2 * TARGET_CHAR_BIT);
   set_gdbarch_addr_bit (gdbarch, 32);
+
+  set_gdbarch_wchar_bit (gdbarch, 2 * TARGET_CHAR_BIT);
+  set_gdbarch_wchar_signed (gdbarch, 1);
 
   set_gdbarch_float_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_double_bit (gdbarch, 4 * TARGET_CHAR_BIT);

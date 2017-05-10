@@ -1,5 +1,5 @@
 /* Matsushita 10300 specific support for 32-bit ELF
-   Copyright (C) 1996-2016 Free Software Foundation, Inc.
+   Copyright (C) 1996-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -1025,8 +1025,8 @@ mn10300_do_tls_transition (bfd *         input_bfd,
     default:
       _bfd_error_handler
 	/* xgettext:c-format */
-	(_("%s: Unsupported transition from %s to %s"),
-	 bfd_get_filename (input_bfd),
+	(_("%B: Unsupported transition from %s to %s"),
+	 input_bfd,
 	 elf_mn10300_howto_table[r_type].name,
 	 elf_mn10300_howto_table[tls_r_type].name);
       break;

@@ -1,5 +1,5 @@
 /* 32-bit ELF support for ARM
-   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+   Copyright (C) 1998-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -3158,10 +3158,6 @@ struct elf32_arm_link_hash_table
   /* How many R_ARM_TLS_DESC relocations were generated so far.  */
   bfd_vma num_tls_desc;
 
-  /* Short-cuts to get to dynamic linker sections.  */
-  asection *sdynbss;
-  asection *srelbss;
-
   /* The (unloaded but important) VxWorks .rela.plt.unloaded section.  */
   asection *srelplt2;
 
@@ -3648,11 +3644,6 @@ elf32_arm_create_dynamic_sections (bfd *dynobj, struct bfd_link_info *info)
   if (!_bfd_elf_create_dynamic_sections (dynobj, info))
     return FALSE;
 
-  htab->sdynbss = bfd_get_linker_section (dynobj, ".dynbss");
-  if (!bfd_link_pic (info))
-    htab->srelbss = bfd_get_linker_section (dynobj,
-					    RELOC_SECTION (htab, ".bss"));
-
   if (htab->vxworks_p)
     {
       if (!elf_vxworks_create_dynamic_sections (dynobj, info, &htab->srelplt2))
@@ -3694,8 +3685,8 @@ elf32_arm_create_dynamic_sections (bfd *dynobj, struct bfd_link_info *info)
 
   if (!htab->root.splt
       || !htab->root.srelplt
-      || !htab->sdynbss
-      || (!bfd_link_pic (info) && !htab->srelbss))
+      || !htab->root.sdynbss
+      || (!bfd_link_pic (info) && !htab->root.srelbss))
     abort ();
 
   return TRUE;
@@ -4033,10 +4024,12 @@ arm_type_of_stub (struct bfd_link_info *info,
 	      if (!thumb_only)
 		{
 		  if (input_sec->flags & SEC_ELF_PURECODE)
-		    _bfd_error_handler (_("\
-%B(%A): warning: long branch  veneers used in section with SHF_ARM_PURECODE section \
-attribute is only supported for M-profile targets that implement the movw instruction."),
-					input_sec);
+		    _bfd_error_handler
+		      (_("%B(%A): warning: long branch veneers used in"
+			 " section with SHF_ARM_PURECODE section"
+			 " attribute is only supported for M-profile"
+			 " targets that implement the movw instruction."),
+		       input_bfd, input_sec);
 
 		  stub_type = (bfd_link_pic (info) | globals->pic_veneer)
 		    /* PIC stubs.  */
@@ -4065,10 +4058,12 @@ attribute is only supported for M-profile targets that implement the movw instru
 		  else
 		    {
 		      if (input_sec->flags & SEC_ELF_PURECODE)
-			_bfd_error_handler (_("\
-%B(%A): warning: long branch  veneers used in section with SHF_ARM_PURECODE section \
-attribute is only supported for M-profile targets that implement the movw instruction."),
-					    input_sec);
+			_bfd_error_handler
+			  (_("%B(%A): warning: long branch veneers used in"
+			     " section with SHF_ARM_PURECODE section"
+			     " attribute is only supported for M-profile"
+			     " targets that implement the movw instruction."),
+			   input_bfd, input_sec);
 
 		      stub_type = (bfd_link_pic (info) | globals->pic_veneer)
 			/* PIC stub.  */
@@ -4082,13 +4077,12 @@ attribute is only supported for M-profile targets that implement the movw instru
 	  else
 	    {
 	      if (input_sec->flags & SEC_ELF_PURECODE)
-		_bfd_error_handler (_("%B(%s): warning: long branch "
-				      " veneers used in section with "
-				      "SHF_ARM_PURECODE section "
-				      "attribute is only supported"
-				      " for M-profile targets that "
-				      "implement the movw "
-				      "instruction."));
+		_bfd_error_handler
+		  (_("%B(%A): warning: long branch veneers used in"
+		     " section with SHF_ARM_PURECODE section"
+		     " attribute is only supported" " for M-profile"
+		     " targets that implement the movw instruction."),
+		   input_bfd, input_sec);
 
 	      /* Thumb to arm.  */
 	      if (sym_sec != NULL
@@ -4098,7 +4092,7 @@ attribute is only supported for M-profile targets that implement the movw instru
 		  _bfd_error_handler
 		    (_("%B(%s): warning: interworking not enabled.\n"
 		       "  first occurrence: %B: Thumb call to ARM"),
-		     sym_sec->owner, input_bfd, name);
+		     sym_sec->owner, name, input_bfd);
 		}
 
 	      stub_type =
@@ -4135,13 +4129,12 @@ attribute is only supported for M-profile targets that implement the movw instru
 	   || r_type == R_ARM_TLS_CALL)
     {
       if (input_sec->flags & SEC_ELF_PURECODE)
-	_bfd_error_handler (_("%B(%s): warning: long branch "
-			      " veneers used in section with "
-			      "SHF_ARM_PURECODE section "
-			      "attribute is only supported"
-			      " for M-profile targets that "
-			      "implement the movw "
-			      "instruction."));
+	_bfd_error_handler
+	  (_("%B(%A): warning: long branch veneers used in"
+	     " section with SHF_ARM_PURECODE section"
+	     " attribute is only supported for M-profile"
+	     " targets that implement the movw instruction."),
+	   input_bfd, input_sec);
       if (branch_type == ST_BRANCH_TO_THUMB)
 	{
 	  /* Arm to thumb.  */
@@ -4500,7 +4493,7 @@ elf32_arm_add_stub (const char *stub_name, asection *section,
     {
       if (section == NULL)
 	section = stub_sec;
-      _bfd_error_handler (_("%s: cannot create stub entry %s"),
+      _bfd_error_handler (_("%B: cannot create stub entry %s"),
 			  section->owner, stub_name);
       return NULL;
     }
@@ -6637,7 +6630,7 @@ elf32_arm_size_stubs (bfd *output_bfd,
 					     TRUE, FALSE);
 	  if (stub_entry == NULL)
 	    {
-	      _bfd_error_handler (_("%s: cannot create stub entry %s"),
+	      _bfd_error_handler (_("%B: cannot create stub entry %s"),
 				  section->owner, stub_name);
 	      return FALSE;
 	    }
@@ -8627,11 +8620,12 @@ bfd_elf32_arm_stm32l4xx_erratum_scan (bfd *abfd,
 			if (is_not_last_in_it_block)
 			  {
 			    _bfd_error_handler
-			      /* Note - overlong line used here to allow for translation.  */
 			      /* xgettext:c-format */
-			      (_("\
-%B(%A+0x%lx): error: multiple load detected in non-last IT block instruction : STM32L4XX veneer cannot be generated.\n"
-				 "Use gcc option -mrestrict-it to generate only one instruction per IT block.\n"),
+			      (_("%B(%A+0x%lx): error: multiple load detected"
+				 " in non-last IT block instruction :"
+				 " STM32L4XX veneer cannot be generated.\n"
+				 "Use gcc option -mrestrict-it to generate"
+				 " only one instruction per IT block.\n"),
 			       abfd, sec, (long) i);
 			  }
 			else
@@ -8817,7 +8811,7 @@ elf32_thumb_to_arm_stub (struct bfd_link_info * info,
 	  _bfd_error_handler
 	    (_("%B(%s): warning: interworking not enabled.\n"
 	       "  first occurrence: %B: Thumb call to ARM"),
-	     sym_sec->owner, input_bfd, name);
+	     sym_sec->owner, name, input_bfd);
 
 	  return FALSE;
 	}
@@ -8907,7 +8901,7 @@ elf32_arm_create_thumb_stub (struct bfd_link_info * info,
 	  _bfd_error_handler
 	    (_("%B(%s): warning: interworking not enabled.\n"
 	       "  first occurrence: %B: arm call to thumb"),
-	     sym_sec->owner, input_bfd, name);
+	     sym_sec->owner, name, input_bfd);
 	}
 
       --my_offset;
@@ -10516,6 +10510,10 @@ elf32_arm_final_link_relocate (reloc_howto_type *           howto,
 
 	if (value >= 0x1000)
 	  return bfd_reloc_overflow;
+
+	/* Destination is Thumb.  Force bit 0 to 1 to reflect this.  */
+	if (branch_type == ST_BRANCH_TO_THUMB)
+	  value |= 1;
 
 	insn = (insn & 0xfb0f8f00) | (value & 0xff)
 	     | ((value & 0x700) << 4)
@@ -15273,7 +15271,7 @@ elf32_arm_adjust_dynamic_symbol (struct bfd_link_info * info,
 				 struct elf_link_hash_entry * h)
 {
   bfd * dynobj;
-  asection * s;
+  asection *s, *srel;
   struct elf32_arm_link_hash_entry * eh;
   struct elf32_arm_link_hash_table *globals;
 
@@ -15372,20 +15370,24 @@ elf32_arm_adjust_dynamic_symbol (struct bfd_link_info * info,
      determine the address it must put in the global offset table, so
      both the dynamic object and the regular object will refer to the
      same memory location for the variable.  */
-  s = bfd_get_linker_section (dynobj, ".dynbss");
-  BFD_ASSERT (s != NULL);
-
   /* If allowed, we must generate a R_ARM_COPY reloc to tell the dynamic
      linker to copy the initial value out of the dynamic object and into
      the runtime process image.  We need to remember the offset into the
      .rel(a).bss section we are going to use.  */
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = globals->root.sdynrelro;
+      srel = globals->root.sreldynrelro;
+    }
+  else
+    {
+      s = globals->root.sdynbss;
+      srel = globals->root.srelbss;
+    }
   if (info->nocopyreloc == 0
       && (h->root.u.def.section->flags & SEC_ALLOC) != 0
       && h->size != 0)
     {
-      asection *srel;
-
-      srel = bfd_get_linker_section (dynobj, RELOC_SECTION (globals, ".bss"));
       elf32_arm_allocate_dynrelocs (info, srel, 1);
       h->needs_copy = 1;
     }
@@ -16026,8 +16028,7 @@ elf32_arm_size_dynamic_sections (bfd * output_bfd ATTRIBUTE_UNUSED,
       if (!bfd_elf32_arm_process_before_allocation (ibfd, info)
 	  || !bfd_elf32_arm_vfp11_erratum_scan (ibfd, info)
 	  || !bfd_elf32_arm_stm32l4xx_erratum_scan (ibfd, info))
-	_bfd_error_handler (_("Errors encountered processing file %s"),
-			    ibfd->filename);
+	_bfd_error_handler (_("Errors encountered processing file %B"), ibfd);
     }
 
   /* Allocate space for the glue sections now that we've sized them.  */
@@ -16100,7 +16101,8 @@ elf32_arm_size_dynamic_sections (bfd * output_bfd ATTRIBUTE_UNUSED,
 	       && s != htab->root.sgotplt
 	       && s != htab->root.iplt
 	       && s != htab->root.igotplt
-	       && s != htab->sdynbss)
+	       && s != htab->root.sdynbss
+	       && s != htab->root.sdynrelro)
 	{
 	  /* It's not one of our sections, so don't allocate space.  */
 	  continue;
@@ -16310,14 +16312,15 @@ elf32_arm_finish_dynamic_symbol (bfd * output_bfd,
 		  && (h->root.type == bfd_link_hash_defined
 		      || h->root.type == bfd_link_hash_defweak));
 
-      s = htab->srelbss;
-      BFD_ASSERT (s != NULL);
-
       rel.r_addend = 0;
       rel.r_offset = (h->root.u.def.value
 		      + h->root.u.def.section->output_section->vma
 		      + h->root.u.def.section->output_offset);
       rel.r_info = ELF32_R_INFO (h->dynindx, R_ARM_COPY);
+      if (h->root.u.def.section == htab->root.sdynrelro)
+	s = htab->root.sreldynrelro;
+      else
+	s = htab->root.srelbss;
       elf32_arm_add_dynreloc (output_bfd, info, s, &rel);
     }
 
@@ -17499,6 +17502,10 @@ elf32_arm_filter_implib_symbols (bfd *abfd ATTRIBUTE_UNUSED,
 {
   struct elf32_arm_link_hash_table *globals = elf32_arm_hash_table (info);
 
+  /* Requirement 8 of "ARM v8-M Security Extensions: Requirements on
+     Development Tools" (ARM-ECM-0359818) mandates Secure Gateway import
+     library to be a relocatable object file.  */
+  BFD_ASSERT (!(bfd_get_file_flags (info->out_implib_bfd) & EXEC_P));
   if (globals->cmse_implib)
     return elf32_arm_filter_cmse_symbols (abfd, info, syms, symcount);
   else
@@ -19398,6 +19405,7 @@ elf32_arm_backend_symbol_processing (bfd *abfd, asymbol *sym)
 #define elf_backend_plt_readonly       1
 #define elf_backend_want_got_plt       1
 #define elf_backend_want_plt_sym       0
+#define elf_backend_want_dynrelro      1
 #define elf_backend_may_use_rel_p      1
 #define elf_backend_may_use_rela_p     0
 #define elf_backend_default_use_rela_p 0
@@ -19697,9 +19705,8 @@ elf32_arm_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
     {
       _bfd_error_handler
 	(_("error: Source object %B has EABI version %d, but target %B has EABI version %d"),
-	 ibfd, obfd,
-	 (in_flags & EF_ARM_EABIMASK) >> 24,
-	 (out_flags & EF_ARM_EABIMASK) >> 24);
+	 ibfd, (in_flags & EF_ARM_EABIMASK) >> 24,
+	 obfd, (out_flags & EF_ARM_EABIMASK) >> 24);
       return FALSE;
     }
 
@@ -19713,9 +19720,8 @@ elf32_arm_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	{
 	  _bfd_error_handler
 	    (_("error: %B is compiled for APCS-%d, whereas target %B uses APCS-%d"),
-	     ibfd, obfd,
-	     in_flags & EF_ARM_APCS_26 ? 26 : 32,
-	     out_flags & EF_ARM_APCS_26 ? 26 : 32);
+	     ibfd, in_flags & EF_ARM_APCS_26 ? 26 : 32,
+	     obfd, out_flags & EF_ARM_APCS_26 ? 26 : 32);
 	  flags_compatible = FALSE;
 	}
 

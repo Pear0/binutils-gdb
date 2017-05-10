@@ -1,5 +1,5 @@
 /* bucomm.c -- Bin Utils COMmon code.
-   Copyright (C) 1991-2016 Free Software Foundation, Inc.
+   Copyright (C) 1991-2017 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -586,6 +586,9 @@ off_t
 get_file_size (const char * file_name)
 {
   struct stat statbuf;
+
+  if (file_name == NULL)
+    return (off_t) -1;
 
   if (stat (file_name, &statbuf) < 0)
     {

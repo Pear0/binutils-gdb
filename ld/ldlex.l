@@ -1,8 +1,8 @@
-%option nounput
+%option nounput noyywrap
 
 %{
 
-/* Copyright (C) 1991-2016 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2017 Free Software Foundation, Inc.
    Written by Steve Chamberlain of Cygnus Support.
 
    This file is part of the GNU Binutils.
@@ -86,10 +86,6 @@ static void lex_warn_invalid (char *where, char *what);
 */
 #define RTOKEN(x)  {  yylval.token = x; return x; }
 
-/* Some versions of flex want this.  */
-#ifndef yywrap
-int yywrap (void) { return 1; }
-#endif
 %}
 
 %a 4000

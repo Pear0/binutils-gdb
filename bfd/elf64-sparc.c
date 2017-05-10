@@ -1,5 +1,5 @@
 /* SPARC-specific support for 64-bit ELF
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -99,7 +99,9 @@ elf64_sparc_slurp_one_reloc_table (bfd *abfd, asection *asect,
 
       if (ELF64_R_SYM (rela.r_info) == STN_UNDEF
 	  /* PR 17512: file: 996185f8.  */
-	  || ELF64_R_SYM (rela.r_info) > bfd_get_symcount (abfd))
+	  || (!dynamic && ELF64_R_SYM(rela.r_info) > bfd_get_symcount(abfd))
+          || (dynamic
+              && ELF64_R_SYM(rela.r_info) > bfd_get_dynamic_symcount(abfd)))
 	relent->sym_ptr_ptr = bfd_abs_section_ptr->symbol_ptr_ptr;
       else
 	{
@@ -464,10 +466,10 @@ elf64_sparc_add_symbol_hook (bfd *abfd, struct bfd_link_info *info,
 	{
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-            (_("Register %%g%d used incompatibly: %s in %B, previously %s in %B"),
-             abfd, p->abfd, (int) sym->st_value,
-             **namep ? *namep : "#scratch",
-             *p->name ? p->name : "#scratch");
+	    (_("Register %%g%d used incompatibly: %s in %B,"
+	       " previously %s in %B"),
+	     (int) sym->st_value, **namep ? *namep : "#scratch", abfd,
+	     *p->name ? p->name : "#scratch", p->abfd);
 	  return FALSE;
 	}
 
@@ -488,8 +490,9 @@ elf64_sparc_add_symbol_hook (bfd *abfd, struct bfd_link_info *info,
 		    type = 0;
 		  _bfd_error_handler
 		    /* xgettext:c-format */
-		    (_("Symbol `%s' has differing types: REGISTER in %B, previously %s in %B"),
-		     abfd, p->abfd, *namep, stt_types[type]);
+		    (_("Symbol `%s' has differing types: REGISTER in %B,"
+		       " previously %s in %B"),
+		     *namep, abfd, stt_types[type], p->abfd);
 		  return FALSE;
 		}
 
@@ -534,8 +537,9 @@ elf64_sparc_add_symbol_hook (bfd *abfd, struct bfd_link_info *info,
 	      type = 0;
 	    _bfd_error_handler
 	      /* xgettext:c-format */
-	      (_("Symbol `%s' has differing types: %s in %B, previously REGISTER in %B"),
-	       abfd, p->abfd, *namep, stt_types[type]);
+	      (_("Symbol `%s' has differing types: %s in %B,"
+		 " previously REGISTER in %B"),
+	       *namep, stt_types[type], abfd, p->abfd);
 	    return FALSE;
 	  }
     }
@@ -902,6 +906,8 @@ const struct elf_size_info elf64_sparc_size_info =
   _bfd_sparc_elf_finish_dynamic_symbol
 #define elf_backend_finish_dynamic_sections \
   _bfd_sparc_elf_finish_dynamic_sections
+#define elf_backend_fixup_symbol \
+  _bfd_sparc_elf_fixup_symbol
 
 #define bfd_elf64_mkobject \
   _bfd_sparc_elf_mkobject
@@ -920,6 +926,7 @@ const struct elf_size_info elf64_sparc_size_info =
 #define elf_backend_plt_readonly 0
 #define elf_backend_want_plt_sym 1
 #define elf_backend_got_header_size 8
+#define elf_backend_want_dynrelro 1
 #define elf_backend_rela_normal 1
 
 /* Section 5.2.4 of the ABI specifies a 256-byte boundary for the table.  */

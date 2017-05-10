@@ -1,5 +1,5 @@
 /* tc-arm.c -- Assemble for the ARM
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (rwe@pegasus.esprit.ec.org)
 	Modified by David Taylor (dtaylor@armltd.co.uk)
 	Cirrus coprocessor mods by Aldy Hernandez (aldyh@redhat.com)
@@ -2710,7 +2710,7 @@ mapping_state (enum mstate state)
 
 	Some Thumb instructions are alignment-sensitive modulo 4 bytes,
 	but themselves require 2-byte alignment; this applies to some
-	PC- relative forms.  However, these cases will invovle implicit
+	PC- relative forms.  However, these cases will involve implicit
 	literal pool generation or an explicit .align >=2, both of
 	which will cause the section to me marked with sufficient
 	alignment.  Thus, we don't handle those cases here.  */
@@ -3380,7 +3380,7 @@ tc_start_label_without_colon (void)
 }
 
 /* Can't use symbol_new here, so have to create a symbol and then at
-   a later date assign it a value. Thats what these functions do.  */
+   a later date assign it a value. That's what these functions do.  */
 
 static void
 symbol_locate (symbolS *    symbolP,
@@ -4969,9 +4969,13 @@ parse_ifimm_zero (char **in)
   int error_code;
 
   if (!is_immediate_prefix (**in))
-    return FALSE;
-
-  ++*in;
+    {
+      /* In unified syntax, all prefixes are optional.  */
+      if (!unified_syntax)
+	return FALSE;
+    }
+  else
+    ++*in;
 
   /* Accept #0x0 as a synonym for #0.  */
   if (strncmp (*in, "0x", 2) == 0)
@@ -6548,7 +6552,7 @@ enum operand_parse_code
   OP_APSR_RR,   /* ARM register or "APSR_nzcv".  */
 
   OP_RRnpc_I0,	/* ARM register or literal 0 */
-  OP_RR_EXr,	/* ARM register or expression with opt. reloc suff. */
+  OP_RR_EXr,	/* ARM register or expression with opt. reloc stuff. */
   OP_RR_EXi,	/* ARM register or expression with imm prefix */
   OP_RF_IF,	/* FPA register or immediate */
   OP_RIWR_RIWC, /* iWMMXt R or C reg */
@@ -7955,17 +7959,13 @@ move_or_literal_pool (int i, enum lit_type t, bfd_boolean mode_3)
 	{
 	  if (thumb_p)
 	    {
-	      /* This can be encoded only for a low register.  */
-	      if ((v & ~0xFF) == 0 && (inst.operands[i].reg < 8))
-		{
-		  /* This can be done with a mov(1) instruction.  */
-		  inst.instruction = T_OPCODE_MOV_I8 | (inst.operands[i].reg << 8);
-		  inst.instruction |= v;
-		  return TRUE;
-		}
+	      /* LDR should not use lead in a flag-setting instruction being
+		 chosen so we do not check whether movs can be used.  */
 
-	      if (ARM_CPU_HAS_FEATURE (cpu_variant, arm_ext_v6t2)
+	      if ((ARM_CPU_HAS_FEATURE (cpu_variant, arm_ext_v6t2)
 		  || ARM_CPU_HAS_FEATURE (cpu_variant, arm_ext_v6t2_v8m))
+		  && inst.operands[i].reg != 13
+		  && inst.operands[i].reg != 15)
 		{
 		  /* Check if on thumb2 it can be done with a mov.w, mvn or
 		     movw instruction.  */
@@ -9058,9 +9058,9 @@ do_mov16 (void)
 
   top = (inst.instruction & 0x00400000) != 0;
   constraint (top && inst.reloc.type == BFD_RELOC_ARM_MOVW,
-	      _(":lower16: not allowed this instruction"));
+	      _(":lower16: not allowed in this instruction"));
   constraint (!top && inst.reloc.type == BFD_RELOC_ARM_MOVT,
-	      _(":upper16: not allowed instruction"));
+	      _(":upper16: not allowed in this instruction"));
   inst.instruction |= inst.operands[0].reg << 12;
   if (inst.reloc.type == BFD_RELOC_UNUSED)
     {
@@ -10486,7 +10486,7 @@ do_t_add_sub_w (void)
 }
 
 /* Parse an add or subtract instruction.  We get here with inst.instruction
-   equalling any of THUMB_OPCODE_add, adds, sub, or subs.  */
+   equaling any of THUMB_OPCODE_add, adds, sub, or subs.  */
 
 static void
 do_t_add_sub (void)
@@ -12115,12 +12115,12 @@ do_t_mov16 (void)
   top = (inst.instruction & 0x00800000) != 0;
   if (inst.reloc.type == BFD_RELOC_ARM_MOVW)
     {
-      constraint (top, _(":lower16: not allowed this instruction"));
+      constraint (top, _(":lower16: not allowed in this instruction"));
       inst.reloc.type = BFD_RELOC_ARM_THUMB_MOVW;
     }
   else if (inst.reloc.type == BFD_RELOC_ARM_MOVT)
     {
-      constraint (!top, _(":upper16: not allowed this instruction"));
+      constraint (!top, _(":upper16: not allowed in this instruction"));
       inst.reloc.type = BFD_RELOC_ARM_THUMB_MOVT;
     }
 
@@ -18007,7 +18007,7 @@ now_it_add_mask (int cond)
      set_it_insn_type_last ()           ditto
      in_it_block ()                     ditto
      it_fsm_post_encode ()              from md_assemble ()
-     force_automatic_it_block_close ()  from label habdling functions
+     force_automatic_it_block_close ()  from label handling functions
 
    Rationale:
      1) md_assemble () calls it_fsm_pre_encode () before calling tencode (),
@@ -21858,7 +21858,7 @@ arm_frag_align_code (int n, int max)
    Note - despite the name this initialisation is not done when the frag
    is created, but only when its type is assigned.  A frag can be created
    and used a long time before its type is set, so beware of assuming that
-   this initialisationis performed first.  */
+   this initialisation is performed first.  */
 
 #ifndef OBJ_ELF
 void
@@ -22109,7 +22109,8 @@ start_unwind_section (const segT text_seg, int idx)
       linkonce = 1;
     }
 
-  obj_elf_change_section (sec_name, type, flags, 0, group_name, linkonce, 0);
+  obj_elf_change_section (sec_name, type, 0, flags, 0, group_name,
+			  linkonce, 0);
 
   /* Set the section link for index tables.  */
   if (idx)
@@ -25036,8 +25037,8 @@ md_begin (void)
       mcpu_cpu_opt = &cpu_default;
       selected_cpu = cpu_default;
     }
-  else if (no_cpu_selected ())
-    selected_cpu = cpu_default;
+  else
+    selected_cpu = *mcpu_cpu_opt;
 #else
   if (mcpu_cpu_opt)
     selected_cpu = *mcpu_cpu_opt;
@@ -25777,7 +25778,7 @@ static const struct arm_option_fpu_value_table arm_fpus[] =
   {"softvfp+vfp",	FPU_ARCH_VFP_V2},
   {"vfp",		FPU_ARCH_VFP_V2},
   {"vfp9",		FPU_ARCH_VFP_V2},
-  {"vfp3",              FPU_ARCH_VFP_V3}, /* For backwards compatbility.  */
+  {"vfp3",		FPU_ARCH_VFP_V3}, /* Undocumented, use vfpv3.  */
   {"vfp10",		FPU_ARCH_VFP_V2},
   {"vfp10-r0",		FPU_ARCH_VFP_V1},
   {"vfpxd",		FPU_ARCH_VFP_V1xD},
@@ -25790,10 +25791,11 @@ static const struct arm_option_fpu_value_table arm_fpus[] =
   {"vfpv3xd-fp16",	FPU_ARCH_VFP_V3xD_FP16},
   {"arm1020t",		FPU_ARCH_VFP_V1},
   {"arm1020e",		FPU_ARCH_VFP_V2},
-  {"arm1136jfs",	FPU_ARCH_VFP_V2},
+  {"arm1136jfs",	FPU_ARCH_VFP_V2}, /* Undocumented, use arm1136jf-s.  */
   {"arm1136jf-s",	FPU_ARCH_VFP_V2},
   {"maverick",		FPU_ARCH_MAVERICK},
-  {"neon",              FPU_ARCH_VFP_V3_PLUS_NEON_V1},
+  {"neon",		FPU_ARCH_VFP_V3_PLUS_NEON_V1},
+  {"neon-vfpv3",	FPU_ARCH_VFP_V3_PLUS_NEON_V1},
   {"neon-fp16",		FPU_ARCH_NEON_FP16},
   {"vfpv4",		FPU_ARCH_VFP_V4},
   {"vfpv4-d16",		FPU_ARCH_VFP_V4D16},

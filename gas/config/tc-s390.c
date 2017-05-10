@@ -1,5 +1,5 @@
 /* tc-s390.c -- Assemble for the S390
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
    Contributed by Martin Schwidefsky (schwidefsky@de.ibm.com).
 
    This file is part of GAS, the GNU Assembler.
@@ -289,6 +289,8 @@ s390_parse_cpu (const char *         arg,
     { STRING_COMMA_LEN ("zEC12"), STRING_COMMA_LEN ("arch10"),
       S390_INSTR_FLAG_HTM },
     { STRING_COMMA_LEN ("z13"), STRING_COMMA_LEN ("arch11"),
+      S390_INSTR_FLAG_HTM | S390_INSTR_FLAG_VX },
+    { STRING_COMMA_LEN ("arch12"), STRING_COMMA_LEN (""),
       S390_INSTR_FLAG_HTM | S390_INSTR_FLAG_VX }
   };
   static struct
@@ -966,7 +968,7 @@ s390_exp_compare (expressionS *exp1, expressionS *exp2)
     }
 }
 
-/* Test for @lit and if its present make an entry in the literal pool and
+/* Test for @lit and if it's present make an entry in the literal pool and
    modify the current expression to be an offset into the literal pool.  */
 static elf_suffix_type
 s390_lit_suffix (char **str_p, expressionS *exp_p, elf_suffix_type suffix)
@@ -1096,7 +1098,7 @@ s390_lit_suffix (char **str_p, expressionS *exp_p, elf_suffix_type suffix)
     }
 
   /* Now change exp_p to the offset into the literal pool.
-     Thats the expression: .L^Ax^By-.L^Ax   */
+     That's the expression: .L^Ax^By-.L^Ax   */
   exp_p->X_add_symbol = lpe->sym;
   exp_p->X_op_symbol = lp_sym;
   exp_p->X_op = O_subtract;
@@ -1466,7 +1468,7 @@ md_gather_operands (char *str,
 	  if (*str != '(')
 	    {
 	      /* Check if parenthesized block can be skipped. If the next
-		 operand is neiter an optional operand nor a base register
+		 operand is neither an optional operand nor a base register
 		 then we have a syntax error.  */
 	      operand = s390_operands + *(++opindex_ptr);
 	      if (!(operand->flags & (S390_OPERAND_INDEX|S390_OPERAND_BASE)))
@@ -1486,7 +1488,7 @@ md_gather_operands (char *str,
 			  operand = s390_operands + *(++opindex_ptr);
 			  if (operand->flags & S390_OPERAND_OPTIONAL)
 			    continue;
-			  as_bad (_("syntax error; expected ,"));
+			  as_bad (_("syntax error; expected ','"));
 			  break;
 			}
 		    }
@@ -1516,7 +1518,7 @@ md_gather_operands (char *str,
 	}
       else if (operand->flags & S390_OPERAND_BASE)
 	{
-	  /* After the base register the parenthesed block ends.  */
+	  /* After the base register the parenthesised block ends.  */
 	  if (*str++ != ')')
 	    as_bad (_("syntax error; missing ')' after base register"));
 	  skip_optional = 0;
@@ -1530,7 +1532,7 @@ md_gather_operands (char *str,
 		      operand = s390_operands + *(++opindex_ptr);
 		      if (operand->flags & S390_OPERAND_OPTIONAL)
 			continue;
-		      as_bad (_("syntax error; expected ,"));
+		      as_bad (_("syntax error; expected ','"));
 		      break;
 		    }
 		}
@@ -1564,7 +1566,7 @@ md_gather_operands (char *str,
 		      operand = s390_operands + *(++opindex_ptr);
 		      if (operand->flags & S390_OPERAND_OPTIONAL)
 			continue;
-		      as_bad (_("syntax error; expected ,"));
+		      as_bad (_("syntax error; expected ','"));
 		      break;
 		    }
 		}
@@ -2131,9 +2133,11 @@ md_pcrel_from_section (fixS *fixp, segT sec ATTRIBUTE_UNUSED)
 int
 tc_s390_fix_adjustable (fixS *fixP)
 {
-  /* Don't adjust references to merge sections.  */
-  if ((S_GET_SEGMENT (fixP->fx_addsy)->flags & SEC_MERGE) != 0)
+  /* Don't adjust pc-relative references to merge sections.  */
+  if (fixP->fx_pcrel
+      && (S_GET_SEGMENT (fixP->fx_addsy)->flags & SEC_MERGE) != 0)
     return 0;
+
   /* adjust_reloc_syms doesn't know about the GOT.  */
   if (   fixP->fx_r_type == BFD_RELOC_16_GOTOFF
       || fixP->fx_r_type == BFD_RELOC_32_GOTOFF

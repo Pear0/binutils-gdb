@@ -1,6 +1,6 @@
 /* Support for printing C++ values for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -759,7 +759,7 @@ cp_find_class_member (struct type **self_p, int *fieldno,
 
 void
 cp_print_class_member (const gdb_byte *valaddr, struct type *type,
-		       struct ui_file *stream, char *prefix)
+		       struct ui_file *stream, const char *prefix)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (get_type_arch (type));
 

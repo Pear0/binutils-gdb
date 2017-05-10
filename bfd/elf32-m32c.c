@@ -1,5 +1,5 @@
 /* M16C/M32C specific support for 32-bit ELF.
-   Copyright (C) 2005-2016 Free Software Foundation, Inc.
+   Copyright (C) 2005-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -874,8 +874,8 @@ m32c_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	  error = TRUE;
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%s: compiled with %s and linked with modules compiled with %s"),
-	     bfd_get_filename (ibfd), new_opt, old_opt);
+	    (_("%B: compiled with %s and linked with modules compiled with %s"),
+	     ibfd, new_opt, old_opt);
 	}
 
       new_flags &= ~ EF_M32C_ALL_FLAGS;
@@ -887,8 +887,9 @@ m32c_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	  error = TRUE;
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%s: uses different e_flags (0x%lx) fields than previous modules (0x%lx)"),
-	     bfd_get_filename (ibfd), (long)new_flags, (long)old_flags);
+	    (_("%B: uses different e_flags (0x%lx) fields"
+	       " than previous modules (0x%lx)"),
+	     ibfd, (long) new_flags, (long) old_flags);
 	}
     }
 
@@ -2106,7 +2107,8 @@ m32c_elf_relax_delete_bytes
 
 /* This is for versions of gcc prior to 4.3.  */
 static unsigned int
-_bfd_m32c_elf_eh_frame_address_size (bfd *abfd, asection *sec ATTRIBUTE_UNUSED)
+_bfd_m32c_elf_eh_frame_address_size (bfd *abfd,
+				     const asection *sec ATTRIBUTE_UNUSED)
 {
   if ((elf_elfheader (abfd)->e_flags & EF_M32C_CPU_MASK) == EF_M32C_CPU_M16C)
     return 2;

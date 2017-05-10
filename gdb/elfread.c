@@ -1,6 +1,6 @@
 /* Read ELF (Executable and Linking Format) object files for GDB.
 
-   Copyright (C) 1991-2016 Free Software Foundation, Inc.
+   Copyright (C) 1991-2017 Free Software Foundation, Inc.
 
    Written by Fred Fish at Cygnus Support.
 
@@ -1006,7 +1006,7 @@ elf_gnu_ifunc_resolver_return_stop (struct breakpoint *b)
   resolved_pc = gdbarch_addr_bits_remove (gdbarch, resolved_pc);
 
   gdb_assert (current_program_space == b->pspace || b->pspace == NULL);
-  elf_gnu_ifunc_record_cache (event_location_to_string (b->location),
+  elf_gnu_ifunc_record_cache (event_location_to_string (b->location.get ()),
 			      resolved_pc);
 
   sal = find_pc_line (resolved_pc, 0);
@@ -1265,21 +1265,18 @@ elf_symfile_read (struct objfile *objfile, symfile_add_flags symfile_flags)
 	   && objfile->separate_debug_objfile == NULL
 	   && objfile->separate_debug_objfile_backlink == NULL)
     {
-      char *debugfile;
-
-      debugfile = find_separate_debug_file_by_buildid (objfile);
+      gdb::unique_xmalloc_ptr<char> debugfile
+	(find_separate_debug_file_by_buildid (objfile));
 
       if (debugfile == NULL)
-	debugfile = find_separate_debug_file_by_debuglink (objfile);
+	debugfile.reset (find_separate_debug_file_by_debuglink (objfile));
 
-      if (debugfile)
+      if (debugfile != NULL)
 	{
-	  struct cleanup *cleanup = make_cleanup (xfree, debugfile);
-	  bfd *abfd = symfile_bfd_open (debugfile);
+	  gdb_bfd_ref_ptr abfd (symfile_bfd_open (debugfile.get ()));
 
-	  make_cleanup_bfd_unref (abfd);
-	  symbol_file_add_separate (abfd, debugfile, symfile_flags, objfile);
-	  do_cleanups (cleanup);
+	  symbol_file_add_separate (abfd.get (), debugfile.get (),
+				    symfile_flags, objfile);
 	}
     }
 }

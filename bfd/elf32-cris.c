@@ -1,5 +1,5 @@
 /* CRIS-specific support for 32-bit ELF.
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
    Contributed by Axis Communications AB.
    Written by Hans-Peter Nilsson, based on elf32-fr30.c
    PIC and shlib bits based primarily on elf32-m68k.c and elf32-i386.c.
@@ -2057,7 +2057,6 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
 				Elf_Internal_Sym *sym)
 {
   struct elf_cris_link_hash_table * htab;
-  bfd *dynobj;
 
   /* Where in the plt entry to put values.  */
   int plt_off1 = 2, plt_off2 = 10, plt_off3 = 16;
@@ -2088,8 +2087,6 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
       plt_entry = elf_cris_plt_entry_v32;
       plt_pic_entry = elf_cris_pic_plt_entry_v32;
     }
-
-  dynobj = htab->root.dynobj;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -2278,8 +2275,10 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
 		  && (h->root.type == bfd_link_hash_defined
 		      || h->root.type == bfd_link_hash_defweak));
 
-      s = bfd_get_linker_section (dynobj, ".rela.bss");
-      BFD_ASSERT (s != NULL);
+      if (h->root.u.def.section == htab->root.sdynrelro)
+	s = htab->root.sreldynrelro;
+      else
+	s = htab->root.srelbss;
 
       rela.r_offset = (h->root.u.def.value
 		       + h->root.u.def.section->output_section->vma
@@ -2715,8 +2714,9 @@ elf_cris_adjust_gotplt_to_got (struct elf_cris_link_hash_entry *h, void * p)
   struct bfd_link_info *info = (struct bfd_link_info *) p;
 
   /* A GOTPLT reloc, when activated, is supposed to be included into
-     the PLT refcount.  */
+     the PLT refcount, when the symbol isn't set-or-forced local.  */
   BFD_ASSERT (h->gotplt_refcount == 0
+	      || h->root.plt.refcount == -1
 	      || h->gotplt_refcount <= h->root.plt.refcount);
 
   /* If nobody wanted a GOTPLT with this symbol, we're done.  */
@@ -2742,6 +2742,7 @@ elf_cris_adjust_gotplt_to_got (struct elf_cris_link_hash_entry *h, void * p)
       srelgot = elf_hash_table (info)->srelgot;
 
       /* Put accurate refcounts there.  */
+      BFD_ASSERT (h->root.got.refcount >= 0);
       h->root.got.refcount += h->gotplt_refcount;
       h->reg_got_refcount = h->gotplt_refcount;
 
@@ -2840,6 +2841,7 @@ elf_cris_adjust_dynamic_symbol (struct bfd_link_info *info,
   struct elf_cris_link_hash_table * htab;
   bfd *dynobj;
   asection *s;
+  asection *srel;
   bfd_size_type plt_entry_size;
 
   htab = elf_cris_hash_table (info);
@@ -3027,22 +3029,29 @@ elf_cris_adjust_dynamic_symbol (struct bfd_link_info *info,
      both the dynamic object and the regular object will refer to the
      same memory location for the variable.  */
 
-  s = bfd_get_linker_section (dynobj, ".dynbss");
-  BFD_ASSERT (s != NULL);
-
   /* We must generate a R_CRIS_COPY reloc to tell the dynamic linker to
      copy the initial value out of the dynamic object and into the
      runtime process image.  We need to remember the offset into the
      .rela.bss section we are going to use.  */
+
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->root.sdynrelro;
+      srel = htab->root.sreldynrelro;
+    }
+  else
+    {
+      s = htab->root.sdynbss;
+      srel = htab->root.srelbss;
+    }
   if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
-      asection *srel;
-
-      srel = bfd_get_linker_section (dynobj, ".rela.bss");
       BFD_ASSERT (srel != NULL);
       srel->size += sizeof (Elf32_External_Rela);
       h->needs_copy = 1;
     }
+
+  BFD_ASSERT (s != NULL);
 
   return _bfd_elf_adjust_dynamic_copy (info, h, s);
 }
@@ -3469,7 +3478,10 @@ cris_elf_check_relocs (bfd *abfd,
 	    continue;
 
 	  h->needs_plt = 1;
-	  h->plt.refcount++;
+
+	  /* If the symbol is forced local, the refcount is unavailable.  */
+	  if (h->plt.refcount != -1)
+	    h->plt.refcount++;
 	  break;
 
 	case R_CRIS_8:
@@ -3787,7 +3799,8 @@ elf_cris_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	    }
 	}
       else if (! CONST_STRNEQ (name, ".got")
-	       && strcmp (name, ".dynbss") != 0)
+	       && strcmp (name, ".dynbss") != 0
+	       && s != htab->root.sdynrelro)
 	{
 	  /* It's not one of our sections, so don't allocate space.  */
 	  continue;
@@ -4325,6 +4338,7 @@ elf_cris_got_elt_size (bfd *abfd ATTRIBUTE_UNUSED,
 #define elf_backend_got_header_size	12
 #define elf_backend_got_elt_size elf_cris_got_elt_size
 #define elf_backend_dtrel_excludes_plt	1
+#define elf_backend_want_dynrelro	1
 
 /* Later, we my want to optimize RELA entries into REL entries for dynamic
    linking and libraries (if it's a win of any significance).  Until then,
